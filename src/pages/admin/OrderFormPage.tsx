@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   getOrder, createOrder, updateOrder, nextOrderNumber, statusMeta,
-  ORDER_SHOPS, ORDER_SELLERS, orderSubtotal,
+  ORDER_SHOPS, ORDER_SELLERS,
 } from '../../data/ordersStore'
 import type { OrderStatus, OrderLine, OrderInput } from '../../data/ordersStore'
 import { useProducts } from '../../data/productsStore'
@@ -138,8 +138,8 @@ export default function OrderFormPage() {
   const [orderNum,   setOrderNum]   = useState(existing?.orderNumber ?? nextOrderNumber())
   const [lines,      setLines]      = useState<OrderLine[]>(existing?.lines ?? [])
   const [discount,   setDiscount]   = useState(String(existing?.discount      ?? 0))
-  const [mechBonus,  setMechBonus]  = useState(String(existing?.mechanicBonus ?? 0))
-  const [sellBonus,  setSellBonus]  = useState(String(existing?.sellerBonus  ?? 0))
+  const [mechBonus]  = useState(String(existing?.mechanicBonus ?? 0))
+  const [sellBonus]  = useState(String(existing?.sellerBonus  ?? 0))
   const [errors,     setErrors]     = useState<Record<string, string>>({})
 
   const addProduct = (p: Product) => {

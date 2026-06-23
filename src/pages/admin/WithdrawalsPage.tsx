@@ -322,22 +322,6 @@ function DeleteModal({ userName, onClose, onConfirm }: { userName: string; onClo
 
 // ─── Stat cards ───────────────────────────────────────────────────────────────
 
-function AmountStatCard({ label, value, iconBg, icon }: { label: string; value: number; iconBg: string; icon: React.ReactNode }) {
-  return (
-    <div className="bg-card rounded-2xl border border-black/[0.06] p-5 flex items-center justify-between" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-      <div className="flex flex-col gap-1.5 min-w-0 mr-3">
-        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{label}</p>
-        <p className="text-[22px] font-extrabold text-foreground leading-none truncate">
-          {fmt(value)}<span className="text-[13px] font-semibold text-muted-foreground ml-1.5">UZS</span>
-        </p>
-      </div>
-      <span className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
-        <span className="w-5 h-5 text-white">{icon}</span>
-      </span>
-    </div>
-  )
-}
-
 function CountStatCard({ label, value, iconBg, icon }: { label: string; value: number; iconBg: string; icon: React.ReactNode }) {
   return (
     <div className="bg-card rounded-2xl border border-black/[0.06] p-5 flex items-center justify-between" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
