@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+/* ─── §1.1 CSS custom properties (available everywhere via var()) ─── */
+:root {
+  --primary:              #2563EB;
+  --primary-hover:        #1D4ED8;
+  --background:           #F4F5F7;
+  --card:                 #FFFFFF;
+  --foreground:           #1A1A1A;
+  --muted-foreground:     #6B7280;
+  --border:               rgba(0, 0, 0, 0.08);
+  --muted:                #F4F5F7;
+  --secondary:            #EEF2FF;
+  --secondary-foreground: #1E40AF;
+  --destructive:          #EF4444;
+  --success:              #10B981;
+  --success-foreground:   #059669;
+  --warning:              #F59E0B;
+  --ring:                 #93C5FD;
+}
+
+/* ─── §1.1 Tailwind v4 theme — direct values so all utilities generate
+        (no `inline`, no var() indirection that silently fails) ─── */
+@theme {
+  --color-primary:              #2563EB;
+  --color-primary-hover:        #1D4ED8;
+  --color-background:           #F4F5F7;
+  --color-card:                 #FFFFFF;
+  --color-foreground:           #1A1A1A;
+  --color-muted-foreground:     #6B7280;
+  --color-muted:                #F4F5F7;
+  --color-secondary:            #EEF2FF;
+  --color-secondary-foreground: #1E40AF;
+  --color-destructive:          #EF4444;
+  --color-success:              #10B981;
+  --color-success-foreground:   #059669;
+  --color-warning:              #F59E0B;
+  --color-ring:                 #93C5FD;
+}
+
+/* ─── Base ─── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html { font-size: 16px; }
+
+body {
+  margin: 0;
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Ensure placeholder colour renders — Tailwind v4 doesn't always emit this */
+input::placeholder {
+  color: var(--muted-foreground);
+  opacity: 1;
+}
