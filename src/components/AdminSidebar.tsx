@@ -123,16 +123,6 @@ const nav: NavGroup[] = [
         ),
       },
       {
-        label: 'Transfer',
-        path: '/admin/transfer',
-        icon: (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M7 16V4m0 0L3 8m4-4 4 4" />
-            <path d="M17 8v12m0 0 4-4m-4 4-4-4" />
-          </svg>
-        ),
-      },
-      {
         label: 'Brands',
         path: '/admin/brands',
         icon: (
@@ -183,15 +173,11 @@ const nav: NavGroup[] = [
         ),
       },
       {
-        label: 'Discounts',
-        path: '/admin/discounts',
+        label: 'Bonus History',
+        path: '/admin/bonus-history',
         icon: (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 14 15 8" />
-            <circle cx="9.5" cy="8.5" r="1" fill="currentColor" stroke="none" />
-            <circle cx="14.5" cy="13.5" r="1" fill="currentColor" stroke="none" />
-            <path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h2.172a2 2 0 0 0 1.414-.586l8.414-8.414a2 2 0 0 0 0-2.828l-3.172-3.172a2 2 0 0 0-2.828 0z" />
-            <path d="m15 5 1.5-1.5a2.121 2.121 0 0 1 3 3L18 8" />
+            <path d="M12 8v4l3 3" /><circle cx="12" cy="12" r="9" />
           </svg>
         ),
       },

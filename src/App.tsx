@@ -19,6 +19,8 @@ import OrdersPage from './pages/admin/OrdersPage'
 import OrderFormPage from './pages/admin/OrderFormPage'
 import WithdrawalsPage from './pages/admin/WithdrawalsPage'
 import BonusesPage from './pages/admin/BonusesPage'
+import BonusHistoryPage from './pages/admin/BonusHistoryPage'
+import DashboardPage from './pages/admin/DashboardPage'
 
 export default function App() {
   return (
@@ -29,7 +31,7 @@ export default function App() {
 
         {/* Super Admin panel */}
         <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<div className="p-6 text-foreground font-semibold">Dashboard — coming soon</div>} />
+          <Route index element={<DashboardPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="admin-users" element={<AdminUsersPage />} />
           <Route path="shops" element={<ShopsPage />} />
@@ -50,7 +52,7 @@ export default function App() {
           <Route path="orders/:id/edit" element={<OrderFormPage />} />
           <Route path="withdrawals" element={<WithdrawalsPage />} />
           <Route path="bonuses" element={<BonusesPage />} />
-          <Route path="discounts" element={<div className="p-6 text-foreground font-semibold">Discounts — coming soon</div>} />
+          <Route path="bonus-history" element={<BonusHistoryPage />} />
           <Route path="roles" element={<div className="p-6 text-foreground font-semibold">Roles & Permissions — coming soon</div>} />
           <Route path="notifications" element={<div className="p-6 text-foreground font-semibold">Notifications — coming soon</div>} />
         </Route>

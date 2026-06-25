@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
-import { useOrders, deleteOrder, orderTotal, statusMeta } from '../../data/ordersStore'
+import { useOrders, deleteOrder } from '../../data/ordersStore'
 import type { Order, OrderStatus } from '../../data/ordersStore'
 
 function useEscClose(onClose: () => void) {
@@ -130,6 +130,14 @@ function fmtPrice(n: number) {
   return n.toLocaleString('ru-RU').replace(/,/g, ' ') + ' UZS'
 }
 
+function ProductInitials({ name, image, size = 32 }: { name: string; image: string; size?: number }) {
+  const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+  const colors = ['bg-blue-100 text-blue-600', 'bg-violet-100 text-violet-600', 'bg-amber-100 text-amber-600', 'bg-emerald-100 text-emerald-600', 'bg-rose-100 text-rose-600']
+  const color = colors[name.charCodeAt(0) % colors.length]
+  if (image) return <img src={image} alt={name} style={{ width: size, height: size }} className="rounded-lg object-cover shrink-0" />
+  return <div style={{ width: size, height: size }} className={`rounded-lg shrink-0 flex items-center justify-center text-[10px] font-bold ${color}`}>{initials}</div>
+}
+
 type ModalState = { kind: 'delete'; order: Order } | null
 
 export default function OrdersPage() {
@@ -143,7 +151,7 @@ export default function OrdersPage() {
 
   const filtered = orders.filter(o => {
     const q = search.trim().toLowerCase()
-    const matchSearch = !q || [o.orderNumber, o.buyerName, o.buyerPhone, o.shop, o.sellerName].some(v => v.toLowerCase().includes(q))
+    const matchSearch = !q || [o.orderNumber, o.buyerName, o.buyerPhone, o.shop, o.product.name, o.product.sku].some(v => v.toLowerCase().includes(q))
     return (statusFilter === 'all' || o.status === statusFilter) && matchSearch
   })
   const pageCount = Math.ceil(filtered.length / pageSize)
@@ -195,17 +203,15 @@ export default function OrdersPage() {
             <tr className="border-b border-black/[0.05]">
               <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Order #</th>
               <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Buyer</th>
-              <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Shop</th>
-              <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Seller</th>
+              <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Product</th>
+              <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Bonus</th>
               <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Date</th>
-              <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Total</th>
-              <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
               <th className="px-5 py-3 text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody>
             {paginated.length === 0 ? (
-              <tr><td colSpan={8} className="px-5 py-16 text-center">
+              <tr><td colSpan={6} className="px-5 py-16 text-center">
                 <div className="flex flex-col items-center gap-2">
                   <svg className="w-8 h-8 text-muted-foreground/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -215,7 +221,6 @@ export default function OrdersPage() {
                 </div>
               </td></tr>
             ) : paginated.map(order => {
-              const sm = statusMeta[order.status]
               return (
                 <tr key={order.id}
                   onClick={() => navigate(`/admin/orders/${order.id}/edit`)}
@@ -227,16 +232,22 @@ export default function OrdersPage() {
                     <p className="text-[13px] font-semibold text-foreground">{order.buyerName}</p>
                     <p className="text-[11px] font-medium text-muted-foreground">{order.buyerPhone}</p>
                   </td>
-                  <td className="px-5 py-3.5 text-[13px] font-medium text-foreground">{order.shop}</td>
-                  <td className="px-5 py-3.5 text-[13px] font-medium text-foreground">{order.sellerName}</td>
-                  <td className="px-5 py-3.5 text-[13px] font-medium text-muted-foreground whitespace-nowrap">{order.date}</td>
-                  <td className="px-5 py-3.5 text-[13px] font-bold text-foreground whitespace-nowrap">{fmtPrice(orderTotal(order))}</td>
                   <td className="px-5 py-3.5">
-                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-xl ${sm.bg} ${sm.text}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${sm.dot}`} />
-                      {sm.label}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <ProductInitials name={order.product.name} image={order.product.image} size={32} />
+                      <div>
+                        <p className="text-[13px] font-semibold text-foreground">{order.product.name}</p>
+                        <p className="text-[11px] font-medium text-muted-foreground font-mono">{order.product.sku}</p>
+                      </div>
+                    </div>
                   </td>
+                  <td className="px-5 py-3.5">
+                    {order.mechanicBonus > 0
+                      ? <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-600">+{fmtPrice(order.mechanicBonus)}</span>
+                      : <span className="text-[12px] font-medium text-muted-foreground/40">—</span>
+                    }
+                  </td>
+                  <td className="px-5 py-3.5 text-[13px] font-medium text-muted-foreground whitespace-nowrap">{order.date}</td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
                       <button title="Edit" onClick={() => navigate(`/admin/orders/${order.id}/edit`)}

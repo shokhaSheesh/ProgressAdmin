@@ -70,7 +70,6 @@ export const sellers: Seller[] = [
 ]
 
 const REGIONS = ['Tashkent', 'Samarkand', 'Bukhara', 'Namangan', 'Andijan', 'Fergana', 'Nukus', 'Termez', 'Qarshi', 'Jizzakh']
-const SHOPS   = ['AutoZone Tashkent', 'CarParts Express', 'SparkMaster Pro', 'SuspensionKing', 'TireHub Yunusabad', 'MotoHub Andijan', 'DriveZone Samarkand']
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -337,210 +336,6 @@ function MechanicFormModal({ mechanic, onClose, onSave }: { mechanic: Mechanic |
   )
 }
 
-// ─── Sellers: Detail modal ────────────────────────────────────────────────────
-
-function SellerModal({ seller, idx, onClose, onEdit, onDelete }: {
-  seller: Seller; idx: number; onClose: () => void; onEdit: () => void; onDelete: () => void
-}) {
-  const avatarBg = avatarColors[idx % avatarColors.length]
-  const sc       = statusConfig[seller.status]
-
-  return (
-    <ModalBackdrop onClose={onClose}>
-      <div className="bg-card rounded-2xl w-[680px] max-w-full max-h-[90vh] overflow-y-auto flex flex-col" style={{ boxShadow: '0 -8px 40px rgba(0,0,0,0.18)' }}>
-        {/* Header */}
-        <div className="flex items-center gap-4 p-6 border-b border-black/[0.06] sticky top-0 bg-card z-10 rounded-t-2xl">
-          <span className={`w-12 h-12 rounded-xl flex items-center justify-center text-white text-[14px] font-bold shrink-0 ${avatarBg}`}>{seller.avatar}</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-[17px] font-bold text-foreground leading-tight">{seller.name}</p>
-            <p className="text-[13px] font-medium text-muted-foreground">@{seller.username} · {seller.phone}</p>
-          </div>
-          <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-xl shrink-0 ${sc.bg} ${sc.text}`}>{sc.label}</span>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all shrink-0">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
-          </button>
-        </div>
-
-        <div className="p-6 flex flex-col gap-6">
-          {/* Details grid */}
-          <div>
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">Details</p>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { label: 'Phone',          value: seller.phone },
-                { label: 'Username',       value: `@${seller.username}` },
-                { label: 'Shop',           value: seller.shop },
-                { label: 'Wallet Balance', value: `${formatBalance(seller.balance)} UZS` },
-                { label: 'Status',         value: seller.status === 'active' ? 'Active' : 'Inactive' },
-                { label: 'Created At',     value: seller.createdAt },
-              ].map((row) => (
-                <div key={row.label} className="bg-[#F4F5F7] rounded-xl px-4 py-3">
-                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">{row.label}</p>
-                  <p className="text-[14px] font-bold text-foreground">{row.value}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-3">
-            <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-2 bg-primary text-white rounded-xl py-3 text-[13px] font-semibold hover:bg-primary-hover active:scale-[0.98] transition-all" style={{ boxShadow: '0 2px 8px rgba(37,99,235,0.3)' }}>
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z" />
-              </svg>
-              Edit Seller
-            </button>
-            <button onClick={onDelete} className="flex-1 flex items-center justify-center gap-2 border-2 border-red-100 bg-red-50 text-red-500 font-semibold rounded-xl py-3 text-[13px] hover:bg-red-100 transition-colors active:scale-[0.98]">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-              </svg>
-              Delete Seller
-            </button>
-          </div>
-        </div>
-      </div>
-    </ModalBackdrop>
-  )
-}
-
-// ─── Sellers: Form modal ──────────────────────────────────────────────────────
-
-interface SellerFormState { name: string; phone: string; username: string; password: string; shop: string; status: Status }
-
-function SellerFormModal({ seller, onClose, onSave }: { seller: Seller | null; onClose: () => void; onSave: (d: SellerFormState) => void }) {
-  const isEdit = seller !== null
-  const [form, setForm] = useState<SellerFormState>({
-    name: seller?.name ?? '', phone: seller?.phone ?? '',
-    username: seller?.username ?? '', password: '',
-    shop: seller?.shop ?? SHOPS[0], status: seller?.status ?? 'active',
-  })
-  const [shopOpen, setShopOpen] = useState(false)
-  const [showPass, setShowPass] = useState(false)
-  const shopRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => { if (shopRef.current && !shopRef.current.contains(e.target as Node)) setShopOpen(false) }
-    document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
-  }, [])
-
-  const set = (k: keyof SellerFormState) => (v: string) => setForm((p) => ({ ...p, [k]: v }))
-
-  return (
-    <ModalBackdrop onClose={onClose}>
-      <div className="bg-card rounded-2xl w-[620px] max-w-full overflow-hidden" style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-black/[0.06]">
-          <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <svg className="w-[18px] h-[18px] text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={isEdit ? 1.8 : 2} strokeLinecap="round" strokeLinejoin="round">
-                {isEdit ? <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z" /></> : <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>}
-              </svg>
-            </span>
-            <div>
-              <p className="text-[16px] font-bold text-foreground">{isEdit ? 'Edit Seller' : 'Add New Seller'}</p>
-              <p className="text-[12px] font-medium text-muted-foreground">{isEdit ? `Editing ${seller.name}` : 'Fill in the details below'}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
-          </button>
-        </div>
-
-        <form onSubmit={(e) => { e.preventDefault(); if (form.name.trim() && form.phone.trim() && form.username.trim()) onSave(form) }} className="p-6 flex flex-col gap-4">
-          {/* Row 1: Name + Phone */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Full Name</label>
-              <input type="text" value={form.name} onChange={(e) => set('name')(e.target.value)} placeholder="e.g. Bekzod Saidov" required className="w-full bg-[#F4F5F7] text-foreground rounded-xl px-4 py-3 text-[13px] font-medium border border-transparent focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Phone Number</label>
-              <input type="text" value={form.phone} onChange={(e) => set('phone')(e.target.value)} placeholder="+998 90 000 00 00" required className="w-full bg-[#F4F5F7] text-foreground rounded-xl px-4 py-3 text-[13px] font-medium border border-transparent focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all" />
-            </div>
-          </div>
-
-          {/* Row 2: Username + Password */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Username</label>
-              <input type="text" value={form.username} onChange={(e) => set('username')(e.target.value)} placeholder="e.g. bekzod.s" required className="w-full bg-[#F4F5F7] text-foreground rounded-xl px-4 py-3 text-[13px] font-medium border border-transparent focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Password {isEdit && <span className="normal-case text-[10px] font-medium text-muted-foreground/60 ml-1">(leave blank to keep)</span>}
-              </label>
-              <div className="relative">
-                <input
-                  type={showPass ? 'text' : 'password'}
-                  value={form.password}
-                  onChange={(e) => set('password')(e.target.value)}
-                  placeholder={isEdit ? '••••••••' : 'Enter password'}
-                  required={!isEdit}
-                  className="w-full bg-[#F4F5F7] text-foreground rounded-xl px-4 py-3 pr-10 text-[13px] font-medium border border-transparent focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                />
-                <button type="button" onClick={() => setShowPass((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
-                  {showPass ? (
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-                      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-                      <line x1="1" y1="1" x2="23" y2="23" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Row 3: Shop + Status */}
-          <div className="grid grid-cols-2 gap-4">
-            {/* Shop dropdown (upward) */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Shop</label>
-              <div ref={shopRef} className="relative">
-                <button type="button" onClick={() => setShopOpen((o) => !o)} className={['w-full flex items-center justify-between bg-[#F4F5F7] text-foreground rounded-xl px-4 py-3 text-[13px] font-medium border transition-all', shopOpen ? 'border-primary ring-2 ring-primary/20' : 'border-transparent'].join(' ')}>
-                  <span className="truncate">{form.shop}</span>
-                  <svg className={['w-4 h-4 text-muted-foreground transition-transform shrink-0 ml-2', shopOpen ? 'rotate-180' : ''].join(' ')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-                </button>
-                {shopOpen && (
-                  <div className="absolute bottom-full mb-1.5 left-0 right-0 bg-card rounded-xl border border-black/[0.08] overflow-hidden z-10 max-h-48 overflow-y-auto" style={{ boxShadow: '0 -8px 24px rgba(0,0,0,0.12)' }}>
-                    {SHOPS.map((s) => (
-                      <button key={s} type="button" onClick={() => { set('shop')(s); setShopOpen(false) }} className={['w-full text-left px-4 py-2.5 text-[13px] font-medium transition-colors', form.shop === s ? 'bg-primary/10 text-primary font-semibold' : 'text-foreground hover:bg-[#F4F5F7]'].join(' ')}>{s}</button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Status */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Status</label>
-              <div className="flex gap-2 h-[46px]">
-                {(['active', 'inactive'] as Status[]).map((s) => (
-                  <button key={s} type="button" onClick={() => set('status')(s)} className={['flex-1 flex items-center justify-center gap-1.5 rounded-xl text-[13px] font-semibold border-2 transition-all', form.status === s ? (s === 'active' ? 'bg-emerald-50 border-emerald-400 text-emerald-600' : 'bg-red-50 border-red-400 text-red-500') : 'bg-[#F4F5F7] border-transparent text-muted-foreground hover:border-black/10'].join(' ')}>
-                    <span className={['w-2 h-2 rounded-full shrink-0', form.status === s ? (s === 'active' ? 'bg-emerald-500' : 'bg-red-400') : 'bg-muted-foreground/30'].join(' ')} />
-                    {s === 'active' ? 'Active' : 'Inactive'}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 rounded-xl py-3 text-[13px] font-semibold border-2 border-black/[0.08] text-foreground hover:bg-[#F4F5F7] transition-colors">Cancel</button>
-            <button type="submit" className="flex-1 rounded-xl py-3 text-[13px] font-semibold bg-primary text-white hover:bg-primary-hover active:scale-[0.98] transition-all" style={{ boxShadow: '0 2px 8px rgba(37,99,235,0.3)' }}>{isEdit ? 'Save Changes' : 'Add Seller'}</button>
-          </div>
-        </form>
-      </div>
-    </ModalBackdrop>
-  )
-}
-
 // ─── Page-size dropdown (upward) ─────────────────────────────────────────────
 
 const PAGE_SIZES = [20, 30, 40]
@@ -626,16 +421,6 @@ function StatCard({ label, value, iconBg, icon }: { label: string; value: number
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
-const MechanicTabIcon = () => (
-  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-  </svg>
-)
-const SellerTabIcon = () => (
-  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
-  </svg>
-)
 const IconUsersAll = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
@@ -748,27 +533,15 @@ function EmptySearch({ onClear }: { onClear: () => void }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'mechanics' | 'sellers'
-
 type MechanicModalState = { kind: 'detail'; mechanic: Mechanic; idx: number } | { kind: 'edit'; mechanic: Mechanic } | { kind: 'delete'; mechanic: Mechanic } | { kind: 'create' } | null
-type SellerModalState   = { kind: 'detail'; seller: Seller; idx: number }    | { kind: 'edit'; seller: Seller }    | { kind: 'delete'; seller: Seller }    | { kind: 'create' } | null
 
 export default function UsersPage() {
-  const [tab, setTab] = useState<Tab>('mechanics')
-
   // Mechanics state
   const [mModal, setMModal]   = useState<MechanicModalState>(null)
   const [mPage, setMPage]     = useState(1)
   const [mSize, setMSize]     = useState(20)
   const [mSearch, setMSearch] = useState('')
   const [mFilter, setMFilter] = useState<StatusFilter>('all')
-
-  // Sellers state
-  const [sModal, setSModal]   = useState<SellerModalState>(null)
-  const [sPage, setSPage]     = useState(1)
-  const [sSize, setSSize]     = useState(20)
-  const [sSearch, setSSearch] = useState('')
-  const [sFilter, setSFilter] = useState<StatusFilter>('all')
 
   // Mechanic derived
   const mTotal    = mechanics.length
@@ -783,45 +556,17 @@ export default function UsersPage() {
   const handleMSearch = (v: string) => { setMSearch(v); setMPage(1) }
   const handleMFilter = (v: StatusFilter) => { setMFilter(v); setMPage(1) }
 
-  // Seller derived
-  const sTotal    = sellers.length
-  const sActive   = sellers.filter((s) => s.status === 'active').length
-  const sFiltered = sellers.filter((s) => {
-    const q = sSearch.trim().toLowerCase()
-    return (sFilter === 'all' || s.status === sFilter) && (!q || s.name.toLowerCase().includes(q) || s.phone.includes(q) || s.username.toLowerCase().includes(q) || s.shop.toLowerCase().includes(q))
-  })
-  const sPageCount = Math.ceil(sFiltered.length / sSize)
-  const sPaginated = sFiltered.slice((sPage - 1) * sSize, sPage * sSize)
-
-  const handleSSearch = (v: string) => { setSSearch(v); setSPage(1) }
-  const handleSFilter = (v: StatusFilter) => { setSFilter(v); setSPage(1) }
-
   return (
     <div className="p-6 flex flex-col gap-6">
       {/* Header */}
       <div>
         <h1 className="text-[22px] font-extrabold text-foreground tracking-tight">Users</h1>
-        <p className="text-[13px] font-medium text-muted-foreground mt-0.5">Manage mechanics and sellers on the platform</p>
+        <p className="text-[13px] font-medium text-muted-foreground mt-0.5">Manage mechanics on the platform</p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-black/[0.08]">
-        {([
-          { id: 'mechanics', label: 'Mechanics', count: mTotal, Icon: MechanicTabIcon },
-          { id: 'sellers',   label: 'Sellers',   count: sTotal, Icon: SellerTabIcon   },
-        ] as const).map(({ id, label, count, Icon }) => (
-          <button key={id} onClick={() => setTab(id as Tab)}
-            className={['flex items-center gap-2 px-5 py-3 text-[13px] font-semibold border-b-2 -mb-px transition-all', tab === id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-black/20'].join(' ')}>
-            <Icon />
-            {label}
-            <span className={['text-[11px] font-semibold px-2 py-0.5 rounded-full', tab === id ? 'bg-primary/10 text-primary' : 'bg-[#F4F5F7] text-muted-foreground'].join(' ')}>{count}</span>
-          </button>
-        ))}
-      </div>
+      {/* ══ MECHANICS ══ */}
+      <>
 
-      {/* ══ MECHANICS TAB ══ */}
-      {tab === 'mechanics' && (
-        <>
           <div className="grid grid-cols-3 gap-4">
             <StatCard label="Total"    value={mTotal}           iconBg="bg-primary"     icon={<IconUsersAll />}    />
             <StatCard label="Active"   value={mActive}          iconBg="bg-emerald-500" icon={<IconUserActive />}  />
@@ -882,77 +627,7 @@ export default function UsersPage() {
             </div>
             <PaginationFooter page={mPage} pageCount={mPageCount} pageSize={mSize} total={mFiltered.length} onPage={setMPage} onPageSize={(s) => { setMSize(s); setMPage(1) }} />
           </div>
-        </>
-      )}
-
-      {/* ══ SELLERS TAB ══ */}
-      {tab === 'sellers' && (
-        <>
-          <div className="grid grid-cols-3 gap-4">
-            <StatCard label="Total"    value={sTotal}           iconBg="bg-primary"     icon={<IconUsersAll />}    />
-            <StatCard label="Active"   value={sActive}          iconBg="bg-emerald-500" icon={<IconUserActive />}  />
-            <StatCard label="Inactive" value={sTotal - sActive} iconBg="bg-red-500"     icon={<IconUserInactive />} />
-          </div>
-
-          <div className="bg-card rounded-2xl border border-black/[0.06] overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-            <TableToolbar
-              search={sSearch} onSearch={handleSSearch}
-              statusFilter={sFilter} onStatusFilter={handleSFilter}
-              onAdd={() => setSModal({ kind: 'create' })} addLabel="Add Seller"
-            />
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-black/[0.05]">
-                    {['Seller', 'Phone', 'Username', 'Shop', 'Wallet Balance', 'Status', 'Created At', ''].map((h) => (
-                      <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {sPaginated.length === 0
-                    ? <EmptySearch onClear={() => { handleSSearch(''); handleSFilter('all') }} />
-                    : sPaginated.map((s) => {
-                        const idx      = sFiltered.indexOf(s)
-                        const sc       = statusConfig[s.status]
-                        const avatarBg = avatarColors[idx % avatarColors.length]
-                        return (
-                          <tr key={s.id} onClick={() => setSModal({ kind: 'detail', seller: s, idx })} className="border-b border-black/[0.04] hover:bg-[#F4F5F7]/70 transition-colors last:border-0 cursor-pointer">
-                            <td className="px-5 py-3.5">
-                              <div className="flex items-center gap-3">
-                                <span className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white text-[11px] font-bold ${avatarBg}`}>{s.avatar}</span>
-                                <span className="text-[13px] font-semibold text-foreground whitespace-nowrap">{s.name}</span>
-                              </div>
-                            </td>
-                            <td className="px-5 py-3.5 text-[13px] font-medium text-foreground">{s.phone}</td>
-                            <td className="px-5 py-3.5">
-                              <span className="text-[12px] font-mono font-semibold text-muted-foreground bg-[#F4F5F7] px-2 py-0.5 rounded-lg">@{s.username}</span>
-                            </td>
-                            <td className="px-5 py-3.5 text-[13px] font-medium text-foreground whitespace-nowrap">{s.shop}</td>
-                            <td className="px-5 py-3.5 text-[13px] font-semibold text-foreground">{formatBalance(s.balance)}<span className="text-[11px] font-medium text-muted-foreground ml-1">UZS</span></td>
-                            <td className="px-5 py-3.5"><span className={`text-[11px] font-semibold px-2.5 py-1 rounded-xl ${sc.bg} ${sc.text}`}>{sc.label}</span></td>
-                            <td className="px-5 py-3.5 text-[13px] font-medium text-muted-foreground">{s.createdAt}</td>
-                            <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center gap-1">
-                                <button title="Edit" onClick={() => setSModal({ kind: 'edit', seller: s })} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all">
-                                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z" /></svg>
-                                </button>
-                                <button title="Delete" onClick={() => setSModal({ kind: 'delete', seller: s })} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-red-50 hover:text-red-500 transition-all">
-                                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })
-                  }
-                </tbody>
-              </table>
-            </div>
-            <PaginationFooter page={sPage} pageCount={sPageCount} pageSize={sSize} total={sFiltered.length} onPage={setSPage} onPageSize={(s) => { setSSize(s); setSPage(1) }} />
-          </div>
-        </>
-      )}
+      </>
 
       {/* ── Mechanic modals ── */}
       {mModal?.kind === 'detail' && (
@@ -964,15 +639,6 @@ export default function UsersPage() {
       {mModal?.kind === 'create' && <MechanicFormModal mechanic={null}            onClose={() => setMModal(null)} onSave={() => setMModal(null)} />}
       {mModal?.kind === 'delete' && <DeleteModal name={mModal.mechanic.name}      onClose={() => setMModal(null)} onConfirm={() => setMModal(null)} />}
 
-      {/* ── Seller modals ── */}
-      {sModal?.kind === 'detail' && (
-        <SellerModal seller={sModal.seller} idx={sModal.idx} onClose={() => setSModal(null)}
-          onEdit={() => setSModal({ kind: 'edit', seller: sModal.seller })}
-          onDelete={() => setSModal({ kind: 'delete', seller: sModal.seller })} />
-      )}
-      {sModal?.kind === 'edit'   && <SellerFormModal seller={sModal.seller} onClose={() => setSModal(null)} onSave={() => setSModal(null)} />}
-      {sModal?.kind === 'create' && <SellerFormModal seller={null}          onClose={() => setSModal(null)} onSave={() => setSModal(null)} />}
-      {sModal?.kind === 'delete' && <DeleteModal name={sModal.seller.name} onClose={() => setSModal(null)} onConfirm={() => setSModal(null)} />}
     </div>
   )
 }

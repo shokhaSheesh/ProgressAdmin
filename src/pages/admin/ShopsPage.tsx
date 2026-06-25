@@ -5,24 +5,30 @@ import { createPortal } from 'react-dom'
 
 type Status = 'active' | 'inactive'
 
+interface WorkSchedule { days: string[]; from: string; to: string }
+
 interface Shop {
   id: number; name: string; ownerName: string; ownerPhone: string
-  ownerLogin: string; address: string; status: Status; createdAt: string
+  address: string; status: Status; schedule: WorkSchedule[]; createdAt: string
 }
+
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+function newScheduleRow(): WorkSchedule { return { days: [], from: '09:00', to: '18:00' } }
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
 const initialShops: Shop[] = [
-  { id: 1,  name: 'AutoZone Tashkent',    ownerName: 'Bekzod Saidov',     ownerPhone: '+998 90 111 22 33', ownerLogin: 'bekzod.s',    address: 'Yunusabad, 7-mavze, 12-uy, Tashkent',      status: 'active',   createdAt: 'Jan 5, 2026'  },
-  { id: 2,  name: 'CarParts Express',      ownerName: 'Jasur Tursunov',    ownerPhone: '+998 91 222 33 44', ownerLogin: 'jasur.t',     address: 'Chilonzor, 9-mavze, 34-uy, Tashkent',      status: 'active',   createdAt: 'Jan 20, 2026' },
-  { id: 3,  name: 'SparkMaster Pro',       ownerName: 'Dilnoza Yusupova',  ownerPhone: '+998 93 333 44 55', ownerLogin: 'dilnoza.y',   address: 'Registon ko\'chasi 5, Samarkand',           status: 'inactive', createdAt: 'Feb 8, 2026'  },
-  { id: 4,  name: 'SuspensionKing',        ownerName: 'Murod Xasanov',     ownerPhone: '+998 94 444 55 66', ownerLogin: 'murod.x',     address: 'Navoiy ko\'chasi 18, Namangan',             status: 'active',   createdAt: 'Feb 22, 2026' },
-  { id: 5,  name: 'TireHub Yunusabad',     ownerName: 'Sherzod Aliev',     ownerPhone: '+998 97 555 66 77', ownerLogin: 'sherzod.a',   address: 'Yunusabad, 19-mavze, 8-uy, Tashkent',      status: 'active',   createdAt: 'Mar 10, 2026' },
-  { id: 6,  name: 'MotoHub Andijan',       ownerName: 'Sanjar Mirzaev',    ownerPhone: '+998 90 666 77 88', ownerLogin: 'sanjar.m',    address: 'Bobur ko\'chasi 22, Andijon',               status: 'active',   createdAt: 'Mar 25, 2026' },
-  { id: 7,  name: 'DriveZone Samarkand',   ownerName: 'Zulfiya Karimova',  ownerPhone: '+998 91 777 88 99', ownerLogin: 'zulfiya.k',   address: 'Amir Temur ko\'chasi 11, Samarkand',        status: 'inactive', createdAt: 'Apr 12, 2026' },
-  { id: 8,  name: 'AutoGuru Fergana',      ownerName: 'Nodir Qodirov',     ownerPhone: '+998 93 888 99 00', ownerLogin: 'nodir.q',     address: 'Al-Farg\'oniy ko\'chasi 3, Farg\'ona',      status: 'active',   createdAt: 'Apr 28, 2026' },
-  { id: 9,  name: 'PartsPro Bukhara',      ownerName: 'Kamola Nazarova',   ownerPhone: '+998 94 999 00 11', ownerLogin: 'kamola.n',    address: 'Mustaqillik ko\'chasi 44, Buxoro',          status: 'active',   createdAt: 'May 14, 2026' },
-  { id: 10, name: 'GearShop Nukus',        ownerName: 'Otajon Yuldashev',  ownerPhone: '+998 97 000 11 22', ownerLogin: 'otajon.y',    address: 'Janubiy ko\'chasi 9, Nukus',                status: 'inactive', createdAt: 'Jun 2, 2026'  },
+  { id: 1,  name: 'AutoZone Tashkent',    ownerName: 'Bekzod Saidov',    ownerPhone: '+998 90 111 22 33', address: "Yunusabad, 7-mavze, 12-uy, Tashkent",      status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '09:00', to: '19:00' }, { days: ['Sat','Sun'], from: '10:00', to: '16:00' }], createdAt: 'Jan 5, 2026'  },
+  { id: 2,  name: 'CarParts Express',     ownerName: 'Jasur Tursunov',   ownerPhone: '+998 91 222 33 44', address: "Chilonzor, 9-mavze, 34-uy, Tashkent",      status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '09:00', to: '20:00' }, { days: ['Sat'], from: '10:00', to: '15:00' }], createdAt: 'Jan 20, 2026' },
+  { id: 3,  name: 'SparkMaster Pro',      ownerName: 'Dilnoza Yusupova', ownerPhone: '+998 93 333 44 55', address: "Registon ko'chasi 5, Samarkand",           status: 'inactive', schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '10:00', to: '18:00' }], createdAt: 'Feb 8, 2026'  },
+  { id: 4,  name: 'SuspensionKing',       ownerName: 'Murod Xasanov',    ownerPhone: '+998 94 444 55 66', address: "Navoiy ko'chasi 18, Namangan",             status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '08:00', to: '18:00' }, { days: ['Sat'], from: '09:00', to: '14:00' }], createdAt: 'Feb 22, 2026' },
+  { id: 5,  name: 'TireHub Yunusabad',    ownerName: 'Sherzod Aliev',    ownerPhone: '+998 97 555 66 77', address: "Yunusabad, 19-mavze, 8-uy, Tashkent",      status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '09:00', to: '19:00' }, { days: ['Sat'], from: '10:00', to: '15:00' }], createdAt: 'Mar 10, 2026' },
+  { id: 6,  name: 'MotoHub Andijan',      ownerName: 'Sanjar Mirzaev',   ownerPhone: '+998 90 666 77 88', address: "Bobur ko'chasi 22, Andijon",               status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '10:00', to: '20:00' }, { days: ['Sat','Sun'], from: '11:00', to: '18:00' }], createdAt: 'Mar 25, 2026' },
+  { id: 7,  name: 'DriveZone Samarkand',  ownerName: 'Zulfiya Karimova', ownerPhone: '+998 91 777 88 99', address: "Amir Temur ko'chasi 11, Samarkand",        status: 'inactive', schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '09:00', to: '18:00' }], createdAt: 'Apr 12, 2026' },
+  { id: 8,  name: 'AutoGuru Fergana',     ownerName: 'Nodir Qodirov',    ownerPhone: '+998 93 888 99 00', address: "Al-Farg'oniy ko'chasi 3, Farg'ona",        status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '08:00', to: '18:00' }, { days: ['Sat'], from: '09:00', to: '13:00' }], createdAt: 'Apr 28, 2026' },
+  { id: 9,  name: 'PartsPro Bukhara',     ownerName: 'Kamola Nazarova',  ownerPhone: '+998 94 999 00 11', address: "Mustaqillik ko'chasi 44, Buxoro",          status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '09:00', to: '19:00' }], createdAt: 'May 14, 2026' },
+  { id: 10, name: 'GearShop Nukus',       ownerName: 'Otajon Yuldashev', ownerPhone: '+998 97 000 11 22', address: "Janubiy ko'chasi 9, Nukus",                status: 'inactive', schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '10:00', to: '18:00' }], createdAt: 'Jun 2, 2026'  },
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -101,19 +107,32 @@ function DeleteModal({ name, onClose, onConfirm }: { name: string; onClose: () =
 
 interface FormState {
   name: string; ownerName: string; ownerPhone: string
-  ownerLogin: string; ownerPassword: string; address: string; status: Status
+  address: string; status: Status; schedule: WorkSchedule[]
 }
 
 function FormModal({ shop, onClose, onSave }: { shop: Shop | null; onClose: () => void; onSave: (d: FormState) => void }) {
   const isEdit = shop !== null
   const [form, setForm] = useState<FormState>({
     name: shop?.name ?? '', ownerName: shop?.ownerName ?? '',
-    ownerPhone: shop?.ownerPhone ?? '', ownerLogin: shop?.ownerLogin ?? '',
-    ownerPassword: '', address: shop?.address ?? '', status: shop?.status ?? 'active',
+    ownerPhone: shop?.ownerPhone ?? '', address: shop?.address ?? '', status: shop?.status ?? 'active',
+    schedule: shop?.schedule ?? [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '09:00', to: '18:00' }],
   })
-  const [showPass, setShowPass] = useState(false)
 
   const set = (k: keyof FormState) => (v: string) => setForm((p) => ({ ...p, [k]: v }))
+
+  const updateScheduleRow = (i: number, patch: Partial<WorkSchedule>) =>
+    setForm((p) => ({ ...p, schedule: p.schedule.map((r, j) => j === i ? { ...r, ...patch } : r) }))
+
+  const toggleDay = (rowIdx: number, day: string) =>
+    updateScheduleRow(rowIdx, {
+      days: form.schedule[rowIdx].days.includes(day)
+        ? form.schedule[rowIdx].days.filter((d) => d !== day)
+        : [...form.schedule[rowIdx].days, day],
+    })
+
+  const addRow    = () => setForm((p) => ({ ...p, schedule: [...p.schedule, newScheduleRow()] }))
+  const removeRow = (i: number) => setForm((p) => ({ ...p, schedule: p.schedule.filter((_, j) => j !== i) }))
+  const usedDays  = (excludeIdx: number) => form.schedule.flatMap((r, i) => i === excludeIdx ? [] : r.days)
 
   return (
     <ModalBackdrop onClose={onClose}>
@@ -138,7 +157,7 @@ function FormModal({ shop, onClose, onSave }: { shop: Shop | null; onClose: () =
           </button>
         </div>
 
-        <form onSubmit={(e) => { e.preventDefault(); if (form.name.trim() && form.ownerName.trim() && form.ownerPhone.trim() && form.ownerLogin.trim()) onSave(form) }} className="p-6 flex flex-col gap-4">
+        <form onSubmit={(e) => { e.preventDefault(); if (form.name.trim() && form.ownerName.trim() && form.ownerPhone.trim()) onSave(form) }} className="p-6 flex flex-col gap-4">
 
           {/* Shop Name */}
           <div className="flex flex-col gap-1.5">
@@ -158,43 +177,6 @@ function FormModal({ shop, onClose, onSave }: { shop: Shop | null; onClose: () =
               <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Owner Phone</label>
               <input type="text" value={form.ownerPhone} onChange={(e) => set('ownerPhone')(e.target.value)} placeholder="+998 90 000 00 00" required
                 className="w-full bg-[#F4F5F7] text-foreground rounded-xl px-4 py-3 text-[13px] font-medium border border-transparent focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all" />
-            </div>
-          </div>
-
-          {/* Login + Password */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Owner Login</label>
-              <input type="text" value={form.ownerLogin} onChange={(e) => set('ownerLogin')(e.target.value)} placeholder="e.g. bekzod.s" required
-                className="w-full bg-[#F4F5F7] text-foreground rounded-xl px-4 py-3 text-[13px] font-medium border border-transparent focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Owner Password {isEdit && <span className="normal-case text-[10px] font-medium text-muted-foreground/60 ml-1">(leave blank to keep)</span>}
-              </label>
-              <div className="relative">
-                <input
-                  type={showPass ? 'text' : 'password'}
-                  value={form.ownerPassword}
-                  onChange={(e) => set('ownerPassword')(e.target.value)}
-                  placeholder={isEdit ? '••••••••' : 'Enter password'}
-                  required={!isEdit}
-                  className="w-full bg-[#F4F5F7] text-foreground rounded-xl px-4 py-3 pr-10 text-[13px] font-medium border border-transparent focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                />
-                <button type="button" onClick={() => setShowPass((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
-                  {showPass ? (
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-                      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-                      <line x1="1" y1="1" x2="23" y2="23" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
-                    </svg>
-                  )}
-                </button>
-              </div>
             </div>
           </div>
 
@@ -220,6 +202,63 @@ function FormModal({ shop, onClose, onSave }: { shop: Shop | null; onClose: () =
                 ))}
               </div>
             </div>
+          </div>
+
+          {/* Working Schedule */}
+          <div className="flex flex-col gap-3 pt-1">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Working Schedule</p>
+              <button type="button" onClick={addRow}
+                className="flex items-center gap-1.5 text-[12px] font-semibold text-primary hover:text-primary-hover transition-colors">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                Add time slot
+              </button>
+            </div>
+
+            {form.schedule.map((row, rowIdx) => (
+              <div key={rowIdx} className="bg-[#F4F5F7] rounded-xl p-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Slot {rowIdx + 1}</p>
+                  {form.schedule.length > 1 && (
+                    <button type="button" onClick={() => removeRow(rowIdx)} className="w-6 h-6 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-red-50 hover:text-red-500 transition-all">
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                    </button>
+                  )}
+                </div>
+
+                {/* Day pills */}
+                <div className="flex gap-1.5 flex-wrap">
+                  {DAYS.map((day) => {
+                    const active  = row.days.includes(day)
+                    const blocked = !active && usedDays(rowIdx).includes(day)
+                    return (
+                      <button key={day} type="button" disabled={blocked} onClick={() => toggleDay(rowIdx, day)}
+                        className={['px-3 py-1.5 rounded-lg text-[12px] font-semibold border-2 transition-all',
+                          blocked ? 'opacity-30 cursor-not-allowed bg-white border-transparent text-muted-foreground' :
+                          active  ? 'bg-primary/10 border-primary text-primary' :
+                                    'bg-white border-transparent text-muted-foreground hover:border-black/10 hover:text-foreground'].join(' ')}>
+                        {day}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Hours */}
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col gap-1 flex-1">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">From</span>
+                    <input type="time" value={row.from} onChange={(e) => updateScheduleRow(rowIdx, { from: e.target.value })}
+                      className="w-full bg-white text-foreground rounded-lg px-3 py-2 text-[13px] font-medium border border-transparent focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all" />
+                  </div>
+                  <span className="mt-4 text-muted-foreground font-semibold text-[13px] shrink-0">—</span>
+                  <div className="flex flex-col gap-1 flex-1">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">To</span>
+                    <input type="time" value={row.to} onChange={(e) => updateScheduleRow(rowIdx, { to: e.target.value })}
+                      className="w-full bg-white text-foreground rounded-lg px-3 py-2 text-[13px] font-medium border border-transparent focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all" />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Footer */}
@@ -442,7 +481,7 @@ export default function ShopsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-black/[0.05]">
-                {['Shop', 'Owner', 'Phone', 'Login', 'Address', 'Status', 'Created At', ''].map((h) => (
+                {['Shop', 'Owner', 'Phone', 'Address', 'Status', 'Created At', ''].map((h) => (
                   <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -477,10 +516,6 @@ export default function ShopsPage() {
                     <td className="px-5 py-3.5 text-[13px] font-medium text-foreground whitespace-nowrap">{shop.ownerName}</td>
                     {/* Phone */}
                     <td className="px-5 py-3.5 text-[13px] font-medium text-foreground">{shop.ownerPhone}</td>
-                    {/* Login */}
-                    <td className="px-5 py-3.5">
-                      <span className="text-[12px] font-mono font-semibold text-muted-foreground bg-[#F4F5F7] px-2 py-0.5 rounded-lg">{shop.ownerLogin}</span>
-                    </td>
                     {/* Address */}
                     <td className="px-5 py-3.5 text-[13px] font-medium text-muted-foreground max-w-[200px] truncate">{shop.address || '—'}</td>
                     {/* Status */}

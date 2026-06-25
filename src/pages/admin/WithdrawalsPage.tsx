@@ -3,62 +3,31 @@ import { createPortal } from 'react-dom'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type UserType = 'mechanic' | 'seller'
-type CardTransferStatus = 'pending' | 'processing' | 'completed' | 'failed'
 type CashStatus = 'pending' | 'out_for_delivery' | 'completed'
 
-interface CardTransfer {
-  id: number; userName: string; avatar: string; userType: UserType; shop: string
-  amount: number; cardBank: string; cardMasked: string; dateTime: string; status: CardTransferStatus
-}
-
 interface CashDelivery {
-  id: number; userName: string; avatar: string; userType: UserType; shop: string
+  id: number; userName: string; avatar: string; phone: string
   amount: number; status: CashStatus
   receiverName: string; receiverPhone: string; receiverAddress: string
   requestedAt: string
 }
 
-type Tab = 'card-transfer' | 'cash-delivery'
-
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
-const initialCardTransfers: CardTransfer[] = [
-  { id: 1,  userName: 'Akmal Karimov',    avatar: 'AK', userType: 'mechanic', shop: '',                    amount: 6300,   cardBank: 'Uzcard',     cardMasked: '•••• 4821', dateTime: 'Jun 20, 2026  14:32', status: 'completed'  },
-  { id: 2,  userName: 'Bekzod Saidov',    avatar: 'BS', userType: 'seller',   shop: 'AutoZone Tashkent',   amount: 14000,  cardBank: 'Humo',       cardMasked: '•••• 7743', dateTime: 'Jun 20, 2026  14:35', status: 'completed'  },
-  { id: 3,  userName: 'Bobur Toshmatov',  avatar: 'BT', userType: 'mechanic', shop: '',                    amount: 10200,  cardBank: 'Uzcard',     cardMasked: '•••• 1109', dateTime: 'Jun 19, 2026  10:15', status: 'completed'  },
-  { id: 4,  userName: 'Jasur Tursunov',   avatar: 'JT', userType: 'seller',   shop: 'CarParts Express',    amount: 8500,   cardBank: 'Humo',       cardMasked: '•••• 5532', dateTime: 'Jun 19, 2026  10:18', status: 'completed'  },
-  { id: 5,  userName: 'Eldor Nazarov',    avatar: 'EN', userType: 'mechanic', shop: '',                    amount: 19200,  cardBank: 'Visa',       cardMasked: '•••• 9901', dateTime: 'Jun 18, 2026  09:05', status: 'processing' },
-  { id: 6,  userName: 'Murod Xasanov',    avatar: 'MX', userType: 'seller',   shop: 'SuspensionKing',      amount: 32000,  cardBank: 'Uzcard',     cardMasked: '•••• 3317', dateTime: 'Jun 18, 2026  09:08', status: 'processing' },
-  { id: 7,  userName: 'Firdavs Rakhimov', avatar: 'FR', userType: 'mechanic', shop: '',                    amount: 57600,  cardBank: 'Mastercard', cardMasked: '•••• 6680', dateTime: 'Jun 17, 2026  16:44', status: 'pending'    },
-  { id: 8,  userName: 'Sherzod Aliev',    avatar: 'SA', userType: 'seller',   shop: 'TireHub Yunusabad',   amount: 24000,  cardBank: 'Humo',       cardMasked: '•••• 2251', dateTime: 'Jun 17, 2026  16:47', status: 'pending'    },
-  { id: 9,  userName: 'Komil Hasanov',    avatar: 'KH', userType: 'mechanic', shop: '',                    amount: 6750,   cardBank: 'Uzcard',     cardMasked: '•••• 8894', dateTime: 'Jun 16, 2026  11:22', status: 'failed'     },
-  { id: 10, userName: 'Zulfiya Karimova', avatar: 'ZK', userType: 'seller',   shop: 'DriveZone Samarkand', amount: 18000,  cardBank: 'Visa',       cardMasked: '•••• 4413', dateTime: 'Jun 16, 2026  11:26', status: 'completed'  },
-  { id: 11, userName: 'Nodir Qodirov',    avatar: 'NQ', userType: 'mechanic', shop: '',                    amount: 23250,  cardBank: 'Humo',       cardMasked: '•••• 7762', dateTime: 'Jun 15, 2026  08:55', status: 'completed'  },
-  { id: 12, userName: 'Kamola Nazarova',  avatar: 'KN', userType: 'seller',   shop: 'SparkMaster Pro',     amount: 45000,  cardBank: 'Uzcard',     cardMasked: '•••• 3348', dateTime: 'Jun 15, 2026  08:58', status: 'completed'  },
-]
-
 const initialCashDeliveries: CashDelivery[] = [
-  { id: 1,  userName: 'Akmal Karimov',    avatar: 'AK', userType: 'mechanic', shop: '',                    amount: 50000,  status: 'pending',          receiverName: 'Akmal Karimov',    receiverPhone: '+998 90 123 45 67', receiverAddress: "Tashkent, Yunusabad, Amir Temur ko'chasi 15",    requestedAt: 'Jun 21, 2026' },
-  { id: 2,  userName: 'Bekzod Saidov',    avatar: 'BS', userType: 'seller',   shop: 'AutoZone Tashkent',   amount: 120000, status: 'completed',        receiverName: 'Bekzod Saidov',    receiverPhone: '+998 91 234 56 78', receiverAddress: "Tashkent, Chilonzor, Bunyodkor ko'chasi 7",      requestedAt: 'Jun 19, 2026' },
-  { id: 3,  userName: 'Eldor Nazarov',    avatar: 'EN', userType: 'mechanic', shop: '',                    amount: 80000,  status: 'out_for_delivery', receiverName: 'Eldor Nazarov',    receiverPhone: '+998 93 345 67 89', receiverAddress: "Tashkent, Mirzo Ulug'bek, Mustaqillik 22",       requestedAt: 'Jun 18, 2026' },
-  { id: 4,  userName: 'Murod Xasanov',    avatar: 'MX', userType: 'seller',   shop: 'SuspensionKing',      amount: 200000, status: 'completed',        receiverName: 'Murod Xasanov',    receiverPhone: '+998 94 456 78 90', receiverAddress: "Tashkent, Shayxontohur, Navoiy ko'chasi 3",      requestedAt: 'Jun 17, 2026' },
-  { id: 5,  userName: 'Nodir Qodirov',    avatar: 'NQ', userType: 'mechanic', shop: '',                    amount: 150000, status: 'pending',          receiverName: 'Nodir Qodirov',    receiverPhone: '+998 95 567 89 01', receiverAddress: "Samarkand, Registon ko'chasi 1",                  requestedAt: 'Jun 20, 2026' },
-  { id: 6,  userName: 'Kamola Nazarova',  avatar: 'KN', userType: 'seller',   shop: 'SparkMaster Pro',     amount: 75000,  status: 'completed',        receiverName: 'Kamola Nazarova',  receiverPhone: '+998 97 678 90 12', receiverAddress: "Tashkent, Uchtepa, Sergeli ko'chasi 9",          requestedAt: 'Jun 15, 2026' },
-  { id: 7,  userName: 'Firdavs Rakhimov', avatar: 'FR', userType: 'mechanic', shop: '',                    amount: 40000,  status: 'pending',          receiverName: 'Firdavs Rakhimov', receiverPhone: '+998 98 789 01 23', receiverAddress: "Tashkent, Yashnobod, O'zbekiston ko'chasi 44",   requestedAt: 'Jun 21, 2026' },
-  { id: 8,  userName: 'Sanjar Mirzaev',   avatar: 'SM', userType: 'seller',   shop: 'CarParts Express',    amount: 95000,  status: 'out_for_delivery', receiverName: 'Sanjar Mirzaev',   receiverPhone: '+998 99 890 12 34', receiverAddress: "Namangan, Uychi ko'chasi 18",                     requestedAt: 'Jun 14, 2026' },
-  { id: 9,  userName: 'Komil Hasanov',    avatar: 'KH', userType: 'mechanic', shop: '',                    amount: 60000,  status: 'completed',        receiverName: 'Komil Hasanov',    receiverPhone: '+998 90 901 23 45', receiverAddress: "Samarkand, Bog'ishamol ko'chasi 6",              requestedAt: 'Jun 12, 2026' },
-  { id: 10, userName: 'Zulfiya Karimova', avatar: 'ZK', userType: 'seller',   shop: 'DriveZone Samarkand', amount: 35000,  status: 'pending',          receiverName: 'Zulfiya Karimova', receiverPhone: '+998 91 012 34 56', receiverAddress: "Tashkent, Olmazor, Qo'yliq ko'chasi 11",        requestedAt: 'Jun 22, 2026' },
+  { id: 1,  userName: 'Akmal Karimov',    avatar: 'AK', phone: '+998 90 123 45 67', amount: 50000,  status: 'pending',          receiverName: 'Akmal Karimov',    receiverPhone: '+998 90 123 45 67', receiverAddress: "Tashkent, Yunusabad, Amir Temur ko'chasi 15",    requestedAt: 'Jun 21, 2026  09:14' },
+  { id: 2,  userName: 'Bekzod Saidov',    avatar: 'BS', phone: '+998 91 234 56 78', amount: 120000, status: 'completed',        receiverName: 'Bekzod Saidov',    receiverPhone: '+998 91 234 56 78', receiverAddress: "Tashkent, Chilonzor, Bunyodkor ko'chasi 7",      requestedAt: 'Jun 19, 2026  11:30' },
+  { id: 3,  userName: 'Eldor Nazarov',    avatar: 'EN', phone: '+998 93 345 67 89', amount: 80000,  status: 'out_for_delivery', receiverName: 'Eldor Nazarov',    receiverPhone: '+998 93 345 67 89', receiverAddress: "Tashkent, Mirzo Ulug'bek, Mustaqillik 22",       requestedAt: 'Jun 18, 2026  08:55' },
+  { id: 4,  userName: 'Murod Xasanov',    avatar: 'MX', phone: '+998 94 456 78 90', amount: 200000, status: 'completed',        receiverName: 'Murod Xasanov',    receiverPhone: '+998 94 456 78 90', receiverAddress: "Tashkent, Shayxontohur, Navoiy ko'chasi 3",      requestedAt: 'Jun 17, 2026  16:02' },
+  { id: 5,  userName: 'Nodir Qodirov',    avatar: 'NQ', phone: '+998 95 567 89 01', amount: 150000, status: 'pending',          receiverName: 'Nodir Qodirov',    receiverPhone: '+998 95 567 89 01', receiverAddress: "Samarkand, Registon ko'chasi 1",                  requestedAt: 'Jun 20, 2026  13:47' },
+  { id: 6,  userName: 'Kamola Nazarova',  avatar: 'KN', phone: '+998 97 678 90 12', amount: 75000,  status: 'completed',        receiverName: 'Kamola Nazarova',  receiverPhone: '+998 97 678 90 12', receiverAddress: "Tashkent, Uchtepa, Sergeli ko'chasi 9",          requestedAt: 'Jun 15, 2026  10:21' },
+  { id: 7,  userName: 'Firdavs Rakhimov', avatar: 'FR', phone: '+998 98 789 01 23', amount: 40000,  status: 'pending',          receiverName: 'Firdavs Rakhimov', receiverPhone: '+998 98 789 01 23', receiverAddress: "Tashkent, Yashnobod, O'zbekiston ko'chasi 44",   requestedAt: 'Jun 21, 2026  14:58' },
+  { id: 8,  userName: 'Sanjar Mirzaev',   avatar: 'SM', phone: '+998 99 890 12 34', amount: 95000,  status: 'out_for_delivery', receiverName: 'Sanjar Mirzaev',   receiverPhone: '+998 99 890 12 34', receiverAddress: "Namangan, Uychi ko'chasi 18",                     requestedAt: 'Jun 14, 2026  07:33' },
+  { id: 9,  userName: 'Komil Hasanov',    avatar: 'KH', phone: '+998 90 901 23 45', amount: 60000,  status: 'completed',        receiverName: 'Komil Hasanov',    receiverPhone: '+998 90 901 23 45', receiverAddress: "Samarkand, Bog'ishamol ko'chasi 6",              requestedAt: 'Jun 12, 2026  15:10' },
+  { id: 10, userName: 'Zulfiya Karimova', avatar: 'ZK', phone: '+998 91 012 34 56', amount: 35000,  status: 'pending',          receiverName: 'Zulfiya Karimova', receiverPhone: '+998 91 012 34 56', receiverAddress: "Tashkent, Olmazor, Qo'yliq ko'chasi 11",        requestedAt: 'Jun 22, 2026  12:05' },
 ]
 
-// ─── Status configs ───────────────────────────────────────────────────────────
-
-const cardStatusConfig: Record<CardTransferStatus, { label: string; bg: string; text: string; dot: string }> = {
-  pending:    { label: 'Pending',    bg: 'bg-amber-50',   text: 'text-amber-600',   dot: 'bg-amber-400'   },
-  processing: { label: 'Processing', bg: 'bg-blue-50',    text: 'text-blue-600',    dot: 'bg-blue-500'    },
-  completed:  { label: 'Completed',  bg: 'bg-emerald-50', text: 'text-emerald-600', dot: 'bg-emerald-500' },
-  failed:     { label: 'Failed',     bg: 'bg-red-50',     text: 'text-red-500',     dot: 'bg-red-400'     },
-}
+// ─── Status config ────────────────────────────────────────────────────────────
 
 const cashStatusConfig: Record<CashStatus, { label: string; bg: string; text: string; dot: string }> = {
   pending:          { label: 'Pending',          bg: 'bg-amber-50',   text: 'text-amber-600',   dot: 'bg-amber-400'   },
@@ -112,7 +81,7 @@ function inputCls(err?: string) {
 // ─── Cash Delivery modal ──────────────────────────────────────────────────────
 
 interface CDForm {
-  userName: string; userType: UserType; shop: string; amount: string; status: CashStatus
+  userName: string; phone: string; amount: string; status: CashStatus
   receiverName: string; receiverPhone: string; receiverAddress: string
 }
 
@@ -124,8 +93,7 @@ function CashDeliveryModal({ initial, onClose, onSave }: {
   const isEdit = !!initial
   const [form, setForm] = useState<CDForm>({
     userName:        initial?.userName        ?? '',
-    userType:        initial?.userType        ?? 'mechanic',
-    shop:            initial?.shop            ?? '',
+    phone:           initial?.phone           ?? '',
     amount:          initial ? String(initial.amount) : '',
     status:          initial?.status          ?? 'pending',
     receiverName:    initial?.receiverName    ?? '',
@@ -142,6 +110,7 @@ function CashDeliveryModal({ initial, onClose, onSave }: {
   const validate = () => {
     const e: typeof errors = {}
     if (!form.userName.trim())        e.userName        = 'Required'
+    if (!form.phone.trim())           e.phone           = 'Required'
     if (!form.amount || Number(form.amount) <= 0) e.amount = 'Must be > 0'
     if (!form.receiverName.trim())    e.receiverName    = 'Required'
     if (!form.receiverPhone.trim())   e.receiverPhone   = 'Required'
@@ -156,8 +125,7 @@ function CashDeliveryModal({ initial, onClose, onSave }: {
     onSave({
       userName:        form.userName.trim(),
       avatar:          initials,
-      userType:        form.userType,
-      shop:            form.userType === 'seller' ? form.shop.trim() : '',
+      phone:           form.phone.trim(),
       amount:          Number(form.amount),
       status:          form.status,
       receiverName:    form.receiverName.trim(),
@@ -194,24 +162,10 @@ function CashDeliveryModal({ initial, onClose, onSave }: {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">User Type</label>
-                <div className="flex gap-2">
-                  {(['mechanic', 'seller'] as UserType[]).map((t) => (
-                    <button key={t} type="button" onClick={() => set('userType', t)}
-                      className={['flex-1 rounded-xl py-2.5 text-[13px] font-semibold border-2 transition-all capitalize',
-                        form.userType === t ? (t === 'mechanic' ? 'bg-amber-50 border-amber-400 text-amber-600' : 'bg-violet-50 border-violet-400 text-violet-600') : 'bg-[#F4F5F7] border-transparent text-muted-foreground hover:border-black/10'].join(' ')}>
-                      {t}
-                    </button>
-                  ))}
-                </div>
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Phone Number</label>
+                <input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+998 90 000 00 00" className={inputCls(errors.phone)} />
+                {errors.phone && <p className="text-[11px] font-semibold text-red-500">{errors.phone}</p>}
               </div>
-
-              {form.userType === 'seller' && (
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Shop</label>
-                  <input value={form.shop} onChange={(e) => set('shop', e.target.value)} placeholder="Shop name" className={inputCls()} />
-                </div>
-              )}
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Amount</label>
@@ -320,7 +274,7 @@ function DeleteModal({ userName, onClose, onConfirm }: { userName: string; onClo
   )
 }
 
-// ─── Stat cards ───────────────────────────────────────────────────────────────
+// ─── Stat card ────────────────────────────────────────────────────────────────
 
 function CountStatCard({ label, value, iconBg, icon }: { label: string; value: number; iconBg: string; icon: React.ReactNode }) {
   return (
@@ -338,19 +292,9 @@ function CountStatCard({ label, value, iconBg, icon }: { label: string; value: n
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
-const IconCard = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
-  </svg>
-)
 const IconCheck = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
     <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
-  </svg>
-)
-const IconX = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
   </svg>
 )
 const IconList = () => (
@@ -453,9 +397,9 @@ function PaginationFooter({ page, pageCount, pageSize, total, onPage, onPageSize
 
 // ─── Shared components ────────────────────────────────────────────────────────
 
-function EmptySearch({ colSpan, onClear }: { colSpan: number; onClear: () => void }) {
+function EmptySearch({ onClear }: { onClear: () => void }) {
   return (
-    <tr><td colSpan={colSpan} className="px-5 py-16 text-center">
+    <tr><td colSpan={5} className="px-5 py-16 text-center">
       <div className="flex flex-col items-center gap-2">
         <svg className="w-8 h-8 text-muted-foreground/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
           <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -485,32 +429,14 @@ function SearchBar({ value, onChange, placeholder }: { value: string; onChange: 
   )
 }
 
-function AddButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button onClick={onClick}
-      className="flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold text-white bg-primary hover:bg-primary/90 active:scale-[0.98] transition-all shrink-0"
-      style={{ boxShadow: '0 2px 8px rgba(37,99,235,0.25)' }}>
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-      Add
-    </button>
-  )
-}
-
-function UserCell({ userName, avatar, userType, shop, index }: { userName: string; avatar: string; userType: UserType; shop: string; index: number }) {
+function UserCell({ userName, avatar, phone, index }: { userName: string; avatar: string; phone: string; index: number }) {
   const bg = avatarColors[index % avatarColors.length]
   return (
     <div className="flex items-center gap-3">
       <span className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white text-[11px] font-bold ${bg}`}>{avatar}</span>
       <div className="flex flex-col gap-0.5">
         <span className="text-[13px] font-semibold text-foreground whitespace-nowrap">{userName}</span>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-xl ${userType === 'mechanic' ? 'bg-amber-50 text-amber-600' : 'bg-violet-50 text-violet-600'}`}>
-            {userType === 'mechanic' ? 'Mechanic' : 'Seller'}
-          </span>
-          {userType === 'seller' && shop && (
-            <span className="text-[11px] font-medium text-muted-foreground">{shop}</span>
-          )}
-        </div>
+        <span className="text-[11px] font-medium text-muted-foreground font-mono">{phone}</span>
       </div>
     </div>
   )
@@ -539,233 +465,124 @@ function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function WithdrawalsPage() {
-  const [tab, setTab] = useState<Tab>('card-transfer')
-
-  // Card Transfer state
-  const [ctSearch, setCtSearch]     = useState('')
-  const [ctPage, setCtPage]         = useState(1)
-  const [ctPageSize, setCtPageSize] = useState(20)
-
-  // Cash Delivery state
   const [cashDeliveries, setCashDeliveries] = useState<CashDelivery[]>(initialCashDeliveries)
-  const [cdSearch, setCdSearch]             = useState('')
-  const [cdPage, setCdPage]                 = useState(1)
-  const [cdPageSize, setCdPageSize]         = useState(20)
-  const [cdEditModal, setCdEditModal]       = useState<CashDelivery | null | 'new'>(null)
-  const [cdDeleteModal, setCdDeleteModal]   = useState<{ id: number; userName: string } | null>(null)
+  const [search, setSearch]                 = useState('')
+  const [page, setPage]                     = useState(1)
+  const [pageSize, setPageSize]             = useState(20)
+  const [editModal, setEditModal]           = useState<CashDelivery | null | 'new'>(null)
+  const [deleteModal, setDeleteModal]       = useState<{ id: number; userName: string } | null>(null)
 
-  // ── Card Transfer derived ─────────────────────────────────────────────────
+  const total     = cashDeliveries.length
+  const pending   = cashDeliveries.filter((r) => r.status === 'pending').length
+  const outForDel = cashDeliveries.filter((r) => r.status === 'out_for_delivery').length
+  const completed = cashDeliveries.filter((r) => r.status === 'completed').length
 
-  const ctTotalCount     = initialCardTransfers.length
-  const ctCompletedCount = initialCardTransfers.filter((t) => t.status === 'completed').length
-  const ctFailedCount    = initialCardTransfers.filter((t) => t.status === 'failed').length
-
-  const ctFiltered = initialCardTransfers.filter((t) => {
-    const q = ctSearch.trim().toLowerCase()
-    return !q || t.userName.toLowerCase().includes(q) || t.cardMasked.includes(q)
-  })
-  const ctPageCount = Math.ceil(ctFiltered.length / ctPageSize)
-  const ctPaginated = ctFiltered.slice((ctPage - 1) * ctPageSize, ctPage * ctPageSize)
-  const handleCtSearch = (v: string) => { setCtSearch(v); setCtPage(1) }
-
-  // ── Cash Delivery derived ─────────────────────────────────────────────────
-
-  const cdTotal     = cashDeliveries.length
-  const cdPending   = cashDeliveries.filter((r) => r.status === 'pending').length
-  const cdOutForDel = cashDeliveries.filter((r) => r.status === 'out_for_delivery').length
-  const cdCompleted = cashDeliveries.filter((r) => r.status === 'completed').length
-
-  const cdFiltered = cashDeliveries.filter((r) => {
-    const q = cdSearch.trim().toLowerCase()
+  const filtered = cashDeliveries.filter((r) => {
+    const q = search.trim().toLowerCase()
     return !q || r.userName.toLowerCase().includes(q) || r.receiverName.toLowerCase().includes(q)
   })
-  const cdPageCount = Math.ceil(cdFiltered.length / cdPageSize)
-  const cdPaginated = cdFiltered.slice((cdPage - 1) * cdPageSize, cdPage * cdPageSize)
-  const handleCdSearch = (v: string) => { setCdSearch(v); setCdPage(1) }
+  const pageCount = Math.ceil(filtered.length / pageSize)
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const handleSearch = (v: string) => { setSearch(v); setPage(1) }
 
-  const handleSaveCD = (data: Omit<CashDelivery, 'id' | 'requestedAt'>) => {
-    if (cdEditModal === 'new') {
-      setCashDeliveries((prev) => [{ id: Date.now(), requestedAt: 'Jun 22, 2026', ...data }, ...prev])
-    } else if (cdEditModal) {
-      setCashDeliveries((prev) => prev.map((r) => r.id === cdEditModal.id ? { ...r, ...data } : r))
+  const handleSave = (data: Omit<CashDelivery, 'id' | 'requestedAt'>) => {
+    if (editModal === 'new') {
+      const now = new Date()
+      const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+      setCashDeliveries((prev) => [{ id: Date.now(), requestedAt: `${date}  ${time}`, ...data }, ...prev])
+    } else if (editModal) {
+      setCashDeliveries((prev) => prev.map((r) => r.id === editModal.id ? { ...r, ...data } : r))
     }
-    setCdEditModal(null)
+    setEditModal(null)
   }
 
-  const handleDeleteCD = () => {
-    if (!cdDeleteModal) return
-    setCashDeliveries((prev) => prev.filter((r) => r.id !== cdDeleteModal.id))
-    setCdDeleteModal(null)
+  const handleDelete = () => {
+    if (!deleteModal) return
+    setCashDeliveries((prev) => prev.filter((r) => r.id !== deleteModal.id))
+    setDeleteModal(null)
   }
 
   return (
     <div className="p-6 flex flex-col gap-6">
-      {/* Header */}
       <div>
         <h1 className="text-[22px] font-extrabold text-foreground tracking-tight">Withdrawals</h1>
-        <p className="text-[13px] font-medium text-muted-foreground mt-0.5">Track card transfers and manage cash delivery requests</p>
+        <p className="text-[13px] font-medium text-muted-foreground mt-0.5">Manage cash delivery requests</p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-black/[0.08]">
-        {([
-          { id: 'card-transfer', label: 'Card Transfer' },
-          { id: 'cash-delivery', label: 'Cash Delivery' },
-        ] as const).map(({ id, label }) => (
-          <button key={id} onClick={() => setTab(id)}
-            className={['flex items-center gap-2 px-5 py-3 text-[13px] font-semibold border-b-2 -mb-px transition-all',
-              tab === id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-black/20'].join(' ')}>
-            {label}
+      <div className="grid grid-cols-4 gap-4">
+        <CountStatCard label="Total Requests"  value={total}     iconBg="bg-primary"     icon={<IconList />}  />
+        <CountStatCard label="Pending"          value={pending}   iconBg="bg-amber-400"   icon={<IconClock />} />
+        <CountStatCard label="Out for Delivery" value={outForDel} iconBg="bg-blue-500"    icon={<IconTruck />} />
+        <CountStatCard label="Completed"        value={completed} iconBg="bg-emerald-500" icon={<IconCheck />} />
+      </div>
+
+      <div className="bg-card rounded-2xl border border-black/[0.06] overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+        <div className="px-5 py-3.5 border-b border-black/[0.06] flex items-center gap-3">
+          <SearchBar value={search} onChange={handleSearch} placeholder="Search by user or receiver name…" />
+          <button onClick={() => setEditModal('new')}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold text-white bg-primary hover:bg-primary/90 active:scale-[0.98] transition-all shrink-0"
+            style={{ boxShadow: '0 2px 8px rgba(37,99,235,0.25)' }}>
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            Add
           </button>
-        ))}
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-black/[0.05]">
+                {['User', 'Amount', 'Status', 'Requested At', 'Actions'].map((h) => (
+                  <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {paginated.length === 0
+                ? <EmptySearch onClear={() => handleSearch('')} />
+                : paginated.map((req, i) => {
+                    const sc = cashStatusConfig[req.status]
+                    return (
+                      <tr key={req.id} className="border-b border-black/[0.04] hover:bg-[#F4F5F7]/70 transition-colors last:border-0">
+                        <td className="px-5 py-3.5">
+                          <UserCell userName={req.userName} avatar={req.avatar} phone={req.phone} index={i} />
+                        </td>
+                        <td className="px-5 py-3.5 text-[13px] font-bold text-foreground whitespace-nowrap">
+                          {fmt(req.amount)} <span className="text-[11px] font-medium text-muted-foreground">UZS</span>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${sc.dot}`} />
+                            <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-xl ${sc.bg} ${sc.text}`}>{sc.label}</span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5 text-[13px] font-medium text-muted-foreground whitespace-nowrap">{req.requestedAt}</td>
+                        <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                          <RowActions onEdit={() => setEditModal(req)} onDelete={() => setDeleteModal({ id: req.id, userName: req.userName })} />
+                        </td>
+                      </tr>
+                    )
+                  })
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <PaginationFooter
+          page={page} pageCount={pageCount} pageSize={pageSize} total={filtered.length}
+          onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1) }}
+        />
       </div>
 
-      {/* ══ CARD TRANSFER TAB ══ */}
-      {tab === 'card-transfer' && (
-        <>
-          <div className="grid grid-cols-3 gap-4">
-            <CountStatCard label="Total Transfers" value={ctTotalCount}     iconBg="bg-primary"     icon={<IconCard />}  />
-            <CountStatCard label="Completed"        value={ctCompletedCount} iconBg="bg-emerald-500" icon={<IconCheck />} />
-            <CountStatCard label="Failed"           value={ctFailedCount}    iconBg="bg-red-500"     icon={<IconX />}     />
-          </div>
-
-          <div className="bg-card rounded-2xl border border-black/[0.06] overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-            <div className="px-5 py-3.5 border-b border-black/[0.06] flex items-center gap-3">
-              <SearchBar value={ctSearch} onChange={handleCtSearch} placeholder="Search by user or card…" />
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-black/[0.05]">
-                    {['User', 'Amount', 'Card Details', 'Date & Time', 'Status'].map((h) => (
-                      <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {ctPaginated.length === 0
-                    ? <EmptySearch colSpan={5} onClear={() => handleCtSearch('')} />
-                    : ctPaginated.map((tx, i) => {
-                        const sc = cardStatusConfig[tx.status]
-                        return (
-                          <tr key={tx.id} className="border-b border-black/[0.04] hover:bg-[#F4F5F7]/70 transition-colors last:border-0">
-                            <td className="px-5 py-3.5">
-                              <UserCell userName={tx.userName} avatar={tx.avatar} userType={tx.userType} shop={tx.shop} index={i} />
-                            </td>
-                            <td className="px-5 py-3.5 text-[13px] font-bold text-foreground whitespace-nowrap">
-                              {fmt(tx.amount)} <span className="text-[11px] font-medium text-muted-foreground">UZS</span>
-                            </td>
-                            <td className="px-5 py-3.5">
-                              <div className="flex items-center gap-2">
-                                <span className="w-7 h-7 rounded-lg bg-[#F4F5F7] flex items-center justify-center shrink-0">
-                                  <svg className="w-3.5 h-3.5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                                    <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
-                                  </svg>
-                                </span>
-                                <div className="flex flex-col gap-0.5">
-                                  <span className="text-[13px] font-semibold text-foreground font-mono whitespace-nowrap">{tx.cardMasked}</span>
-                                  <span className="text-[11px] font-medium text-muted-foreground">{tx.cardBank}</span>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-5 py-3.5 text-[13px] font-medium text-muted-foreground whitespace-nowrap">{tx.dateTime}</td>
-                            <td className="px-5 py-3.5">
-                              <div className="flex items-center gap-1.5">
-                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${sc.dot}`} />
-                                <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-xl ${sc.bg} ${sc.text}`}>{sc.label}</span>
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })
-                  }
-                </tbody>
-              </table>
-            </div>
-
-            <PaginationFooter
-              page={ctPage} pageCount={ctPageCount} pageSize={ctPageSize} total={ctFiltered.length}
-              onPage={setCtPage} onPageSize={(s) => { setCtPageSize(s); setCtPage(1) }}
-            />
-          </div>
-        </>
-      )}
-
-      {/* ══ CASH DELIVERY TAB ══ */}
-      {tab === 'cash-delivery' && (
-        <>
-          <div className="grid grid-cols-4 gap-4">
-            <CountStatCard label="Total Requests"   value={cdTotal}     iconBg="bg-primary"     icon={<IconList />}  />
-            <CountStatCard label="Pending"           value={cdPending}   iconBg="bg-amber-400"   icon={<IconClock />} />
-            <CountStatCard label="Out for Delivery"  value={cdOutForDel} iconBg="bg-blue-500"    icon={<IconTruck />} />
-            <CountStatCard label="Completed"         value={cdCompleted} iconBg="bg-emerald-500" icon={<IconCheck />} />
-          </div>
-
-          <div className="bg-card rounded-2xl border border-black/[0.06] overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-            <div className="px-5 py-3.5 border-b border-black/[0.06] flex items-center gap-3">
-              <SearchBar value={cdSearch} onChange={handleCdSearch} placeholder="Search by user or receiver name…" />
-              <AddButton onClick={() => setCdEditModal('new')} />
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-black/[0.05]">
-                    {['User', 'Amount', 'Status', 'Requested At', 'Actions'].map((h) => (
-                      <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {cdPaginated.length === 0
-                    ? <EmptySearch colSpan={5} onClear={() => handleCdSearch('')} />
-                    : cdPaginated.map((req, i) => {
-                        const sc = cashStatusConfig[req.status]
-                        return (
-                          <tr key={req.id} className="border-b border-black/[0.04] hover:bg-[#F4F5F7]/70 transition-colors last:border-0">
-                            <td className="px-5 py-3.5">
-                              <UserCell userName={req.userName} avatar={req.avatar} userType={req.userType} shop={req.shop} index={i} />
-                            </td>
-                            <td className="px-5 py-3.5 text-[13px] font-bold text-foreground whitespace-nowrap">
-                              {fmt(req.amount)} <span className="text-[11px] font-medium text-muted-foreground">UZS</span>
-                            </td>
-                            <td className="px-5 py-3.5">
-                              <div className="flex items-center gap-1.5">
-                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${sc.dot}`} />
-                                <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-xl ${sc.bg} ${sc.text}`}>{sc.label}</span>
-                              </div>
-                            </td>
-                            <td className="px-5 py-3.5 text-[13px] font-medium text-muted-foreground whitespace-nowrap">{req.requestedAt}</td>
-                            <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
-                              <RowActions onEdit={() => setCdEditModal(req)} onDelete={() => setCdDeleteModal({ id: req.id, userName: req.userName })} />
-                            </td>
-                          </tr>
-                        )
-                      })
-                  }
-                </tbody>
-              </table>
-            </div>
-
-            <PaginationFooter
-              page={cdPage} pageCount={cdPageCount} pageSize={cdPageSize} total={cdFiltered.length}
-              onPage={setCdPage} onPageSize={(s) => { setCdPageSize(s); setCdPage(1) }}
-            />
-          </div>
-        </>
-      )}
-
-      {/* Modals */}
-      {cdEditModal !== null && (
+      {editModal !== null && (
         <CashDeliveryModal
-          initial={cdEditModal === 'new' ? null : cdEditModal}
-          onClose={() => setCdEditModal(null)}
-          onSave={handleSaveCD}
+          initial={editModal === 'new' ? null : editModal}
+          onClose={() => setEditModal(null)}
+          onSave={handleSave}
         />
       )}
-      {cdDeleteModal && (
-        <DeleteModal userName={cdDeleteModal.userName} onClose={() => setCdDeleteModal(null)} onConfirm={handleDeleteCD} />
+      {deleteModal && (
+        <DeleteModal userName={deleteModal.userName} onClose={() => setDeleteModal(null)} onConfirm={handleDelete} />
       )}
     </div>
   )

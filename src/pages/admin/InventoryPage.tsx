@@ -8,7 +8,6 @@ interface InventoryItem {
   image: string
   shop: string
   available: number
-  reserved: number
 }
 
 const SHOPS = [
@@ -17,20 +16,20 @@ const SHOPS = [
 ]
 
 const initialInventory: InventoryItem[] = [
-  { id: 1,  name: 'Spark Plug Iridium', sku: 'NGK-SP-001-14MM', image: '', shop: 'AutoZone Tashkent',   available: 150, reserved: 12 },
-  { id: 2,  name: 'Spark Plug Iridium', sku: 'NGK-SP-001-16MM', image: '', shop: 'AutoZone Tashkent',   available: 80,  reserved: 6  },
-  { id: 3,  name: 'Brake Pads Set',     sku: 'BRB-BP-001-FRONT', image: '', shop: 'CarParts Express',    available: 40,  reserved: 9  },
-  { id: 4,  name: 'Brake Pads Set',     sku: 'BRB-BP-001-REAR',  image: '', shop: 'CarParts Express',    available: 8,   reserved: 3  },
-  { id: 5,  name: 'Oil Filter',         sku: 'MNN-OF-001',       image: '', shop: 'DriveZone Samarkand', available: 220, reserved: 24 },
-  { id: 6,  name: 'Shock Absorber',     sku: 'MNR-SA-001-FL',    image: '', shop: 'MotoHub Andijan',     available: 12,  reserved: 4  },
-  { id: 7,  name: 'Shock Absorber',     sku: 'MNR-SA-001-RL',    image: '', shop: 'MotoHub Andijan',     available: 0,   reserved: 0  },
-  { id: 8,  name: 'Air Filter',         sku: 'MNN-AF-002',       image: '', shop: 'AutoZone Tashkent',   available: 95,  reserved: 15 },
-  { id: 9,  name: 'Alternator Belt',    sku: 'CNT-AB-001',       image: '', shop: 'TireHub Yunusabad',   available: 5,   reserved: 2  },
-  { id: 10, name: 'Wheel Bearing Kit',  sku: 'SKF-WB-001-FRONT', image: '', shop: 'DriveZone Samarkand', available: 20,  reserved: 5  },
-  { id: 11, name: 'Oxygen Sensor',      sku: 'BSH-OS-001',       image: '', shop: 'CarParts Express',    available: 0,   reserved: 0  },
-  { id: 12, name: 'Timing Belt Kit',    sku: 'CNT-TB-001',       image: '', shop: 'TireHub Yunusabad',   available: 34,  reserved: 7  },
-  { id: 13, name: 'Brake Disc',         sku: 'BSH-BD-001-FRONT', image: '', shop: 'AutoZone Tashkent',   available: 18,  reserved: 6  },
-  { id: 14, name: 'Brake Disc',         sku: 'BSH-BD-001-REAR',  image: '', shop: 'AutoZone Tashkent',   available: 9,   reserved: 1  },
+  { id: 1,  name: 'Spark Plug Iridium', sku: 'NGK-SP-001-14MM', image: '', shop: 'AutoZone Tashkent',   available: 150 },
+  { id: 2,  name: 'Spark Plug Iridium', sku: 'NGK-SP-001-16MM', image: '', shop: 'AutoZone Tashkent',   available: 80  },
+  { id: 3,  name: 'Brake Pads Set',     sku: 'BRB-BP-001-FRONT', image: '', shop: 'CarParts Express',    available: 40  },
+  { id: 4,  name: 'Brake Pads Set',     sku: 'BRB-BP-001-REAR',  image: '', shop: 'CarParts Express',    available: 8   },
+  { id: 5,  name: 'Oil Filter',         sku: 'MNN-OF-001',       image: '', shop: 'DriveZone Samarkand', available: 220 },
+  { id: 6,  name: 'Shock Absorber',     sku: 'MNR-SA-001-FL',    image: '', shop: 'MotoHub Andijan',     available: 12  },
+  { id: 7,  name: 'Shock Absorber',     sku: 'MNR-SA-001-RL',    image: '', shop: 'MotoHub Andijan',     available: 0   },
+  { id: 8,  name: 'Air Filter',         sku: 'MNN-AF-002',       image: '', shop: 'AutoZone Tashkent',   available: 95 },
+  { id: 9,  name: 'Alternator Belt',    sku: 'CNT-AB-001',       image: '', shop: 'TireHub Yunusabad',   available: 5   },
+  { id: 10, name: 'Wheel Bearing Kit',  sku: 'SKF-WB-001-FRONT', image: '', shop: 'DriveZone Samarkand', available: 20  },
+  { id: 11, name: 'Oxygen Sensor',      sku: 'BSH-OS-001',       image: '', shop: 'CarParts Express',    available: 0   },
+  { id: 12, name: 'Timing Belt Kit',    sku: 'CNT-TB-001',       image: '', shop: 'TireHub Yunusabad',   available: 34  },
+  { id: 13, name: 'Brake Disc',         sku: 'BSH-BD-001-FRONT', image: '', shop: 'AutoZone Tashkent',   available: 18  },
+  { id: 14, name: 'Brake Disc',         sku: 'BSH-BD-001-REAR',  image: '', shop: 'AutoZone Tashkent',   available: 9   },
 ]
 
 const LOW_THRESHOLD = 10
@@ -310,7 +309,6 @@ export default function InventoryPage() {
                 <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">SKU</th>
                 <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Shop</th>
                 <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Available</th>
-                <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Reserved</th>
                 <th className="px-5 py-3 text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -351,9 +349,6 @@ export default function InventoryPage() {
                           {lvl.label}
                         </span>
                       </div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className={['text-[14px] font-bold tabular-nums', it.reserved > 0 ? 'text-foreground' : 'text-muted-foreground/50'].join(' ')}>{it.reserved}</span>
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-1 justify-end">
