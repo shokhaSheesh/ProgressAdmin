@@ -21,6 +21,9 @@ import WithdrawalsPage from './pages/admin/WithdrawalsPage'
 import BonusesPage from './pages/admin/BonusesPage'
 import BonusHistoryPage from './pages/admin/BonusHistoryPage'
 import DashboardPage from './pages/admin/DashboardPage'
+import NotificationsPage from './pages/admin/NotificationsPage'
+import NotificationFormPage from './pages/admin/NotificationFormPage'
+import InventoryQrPrintPage from './pages/admin/InventoryQrPrintPage'
 
 export default function App() {
   return (
@@ -42,6 +45,7 @@ export default function App() {
           <Route path="products/:id/edit" element={<ProductFormPage />} />
           <Route path="categories" element={<CategoriesPage />} />
           <Route path="inventory" element={<InventoryPage />} />
+          <Route path="inventory/:id/print-qr" element={<InventoryQrPrintPage />} />
           <Route path="transfer" element={<TransfersPage />} />
           <Route path="transfer/new" element={<TransferFormPage />} />
           <Route path="transfer/:id/edit" element={<TransferFormPage />} />
@@ -54,7 +58,9 @@ export default function App() {
           <Route path="bonuses" element={<BonusesPage />} />
           <Route path="bonus-history" element={<BonusHistoryPage />} />
           <Route path="roles" element={<div className="p-6 text-foreground font-semibold">Roles & Permissions — coming soon</div>} />
-          <Route path="notifications" element={<div className="p-6 text-foreground font-semibold">Notifications — coming soon</div>} />
+          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="notifications/new" element={<NotificationFormPage />} />
+          <Route path="notifications/:id/edit" element={<NotificationFormPage />} />
         </Route>
 
         {/* Seller Admin panel */}

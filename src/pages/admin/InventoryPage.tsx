@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 
 interface InventoryItem {
   id: number
   name: string
   sku: string
+  variation: string
   image: string
   shop: string
   available: number
@@ -15,21 +17,21 @@ const SHOPS = [
   'DriveZone Samarkand', 'TireHub Yunusabad',
 ]
 
-const initialInventory: InventoryItem[] = [
-  { id: 1,  name: 'Spark Plug Iridium', sku: 'NGK-SP-001-14MM', image: '', shop: 'AutoZone Tashkent',   available: 150 },
-  { id: 2,  name: 'Spark Plug Iridium', sku: 'NGK-SP-001-16MM', image: '', shop: 'AutoZone Tashkent',   available: 80  },
-  { id: 3,  name: 'Brake Pads Set',     sku: 'BRB-BP-001-FRONT', image: '', shop: 'CarParts Express',    available: 40  },
-  { id: 4,  name: 'Brake Pads Set',     sku: 'BRB-BP-001-REAR',  image: '', shop: 'CarParts Express',    available: 8   },
-  { id: 5,  name: 'Oil Filter',         sku: 'MNN-OF-001',       image: '', shop: 'DriveZone Samarkand', available: 220 },
-  { id: 6,  name: 'Shock Absorber',     sku: 'MNR-SA-001-FL',    image: '', shop: 'MotoHub Andijan',     available: 12  },
-  { id: 7,  name: 'Shock Absorber',     sku: 'MNR-SA-001-RL',    image: '', shop: 'MotoHub Andijan',     available: 0   },
-  { id: 8,  name: 'Air Filter',         sku: 'MNN-AF-002',       image: '', shop: 'AutoZone Tashkent',   available: 95 },
-  { id: 9,  name: 'Alternator Belt',    sku: 'CNT-AB-001',       image: '', shop: 'TireHub Yunusabad',   available: 5   },
-  { id: 10, name: 'Wheel Bearing Kit',  sku: 'SKF-WB-001-FRONT', image: '', shop: 'DriveZone Samarkand', available: 20  },
-  { id: 11, name: 'Oxygen Sensor',      sku: 'BSH-OS-001',       image: '', shop: 'CarParts Express',    available: 0   },
-  { id: 12, name: 'Timing Belt Kit',    sku: 'CNT-TB-001',       image: '', shop: 'TireHub Yunusabad',   available: 34  },
-  { id: 13, name: 'Brake Disc',         sku: 'BSH-BD-001-FRONT', image: '', shop: 'AutoZone Tashkent',   available: 18  },
-  { id: 14, name: 'Brake Disc',         sku: 'BSH-BD-001-REAR',  image: '', shop: 'AutoZone Tashkent',   available: 9   },
+export const initialInventory: InventoryItem[] = [
+  { id: 1,  name: 'Spark Plug Iridium', sku: 'NGK-SP-001-14MM',  variation: '14mm',       image: '', shop: 'AutoZone Tashkent',   available: 150 },
+  { id: 2,  name: 'Spark Plug Iridium', sku: 'NGK-SP-001-16MM',  variation: '16mm',       image: '', shop: 'AutoZone Tashkent',   available: 80  },
+  { id: 3,  name: 'Brake Pads Set',     sku: 'BRB-BP-001-FRONT', variation: 'Front',      image: '', shop: 'CarParts Express',    available: 40  },
+  { id: 4,  name: 'Brake Pads Set',     sku: 'BRB-BP-001-REAR',  variation: 'Rear',       image: '', shop: 'CarParts Express',    available: 8   },
+  { id: 5,  name: 'Oil Filter',         sku: 'MNN-OF-001',       variation: '',           image: '', shop: 'DriveZone Samarkand', available: 220 },
+  { id: 6,  name: 'Shock Absorber',     sku: 'MNR-SA-001-FL',    variation: 'Front Left', image: '', shop: 'MotoHub Andijan',     available: 12  },
+  { id: 7,  name: 'Shock Absorber',     sku: 'MNR-SA-001-RL',    variation: 'Rear Left',  image: '', shop: 'MotoHub Andijan',     available: 0   },
+  { id: 8,  name: 'Air Filter',         sku: 'MNN-AF-002',       variation: '',           image: '', shop: 'AutoZone Tashkent',   available: 95  },
+  { id: 9,  name: 'Alternator Belt',    sku: 'CNT-AB-001',       variation: '',           image: '', shop: 'TireHub Yunusabad',   available: 5   },
+  { id: 10, name: 'Wheel Bearing Kit',  sku: 'SKF-WB-001-FRONT', variation: 'Front',      image: '', shop: 'DriveZone Samarkand', available: 20  },
+  { id: 11, name: 'Oxygen Sensor',      sku: 'BSH-OS-001',       variation: '',           image: '', shop: 'CarParts Express',    available: 0   },
+  { id: 12, name: 'Timing Belt Kit',    sku: 'CNT-TB-001',       variation: '',           image: '', shop: 'TireHub Yunusabad',   available: 34  },
+  { id: 13, name: 'Brake Disc',         sku: 'BSH-BD-001-FRONT', variation: 'Front',      image: '', shop: 'AutoZone Tashkent',   available: 18  },
+  { id: 14, name: 'Brake Disc',         sku: 'BSH-BD-001-REAR',  variation: 'Rear',       image: '', shop: 'AutoZone Tashkent',   available: 9   },
 ]
 
 const LOW_THRESHOLD = 10
@@ -243,6 +245,7 @@ function PageSizeDropdown({ value, onChange }: { value: number; onChange: (n: nu
 }
 
 export default function InventoryPage() {
+  const navigate = useNavigate()
   const [inventory, setInventory] = useState<InventoryItem[]>(initialInventory)
   const [adjusting, setAdjusting] = useState<InventoryItem | null>(null)
   const [page, setPage]         = useState(1)
@@ -307,6 +310,7 @@ export default function InventoryPage() {
                 <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-12">#</th>
                 <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Product</th>
                 <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">SKU</th>
+                <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Variation</th>
                 <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Shop</th>
                 <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Available</th>
                 <th className="px-5 py-3 text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
@@ -340,6 +344,11 @@ export default function InventoryPage() {
                     <td className="px-5 py-3.5">
                       <span className="font-mono text-[12px] font-semibold text-muted-foreground bg-[#F4F5F7] px-2.5 py-1 rounded-lg">{it.sku}</span>
                     </td>
+                    <td className="px-5 py-3.5">
+                      {it.variation
+                        ? <span className="text-[12px] font-semibold text-foreground bg-[#F4F5F7] px-2.5 py-1 rounded-lg whitespace-nowrap">{it.variation}</span>
+                        : <span className="text-[12px] text-muted-foreground/40">—</span>}
+                    </td>
                     <td className="px-5 py-3.5 text-[13px] font-medium text-muted-foreground whitespace-nowrap">{it.shop}</td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2">
@@ -352,6 +361,11 @@ export default function InventoryPage() {
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-1 justify-end">
+                        <button title="Print QR labels" onClick={() => navigate(`/admin/inventory/${it.id}/print-qr`)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all">
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+                          </svg>
+                        </button>
                         <button title="Adjust stock" onClick={() => setAdjusting(it)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all">
                           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z" /></svg>
                         </button>

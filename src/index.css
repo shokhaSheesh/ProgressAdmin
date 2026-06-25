@@ -64,3 +64,12 @@ input::placeholder {
   color: var(--muted-foreground);
   opacity: 1;
 }
+
+@media print {
+  /* Hide sidebar, topbar, and everything except the print sheet */
+  body > #root aside,
+  body > #root header,
+  body > #root nav {
+    display: none !important;
+  }
+}
