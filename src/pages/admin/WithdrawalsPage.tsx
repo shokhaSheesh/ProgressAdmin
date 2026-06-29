@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -465,6 +466,7 @@ function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function WithdrawalsPage() {
+  const navigate = useNavigate()
   const [cashDeliveries, setCashDeliveries] = useState<CashDelivery[]>(initialCashDeliveries)
   const [search, setSearch]                 = useState('')
   const [page, setPage]                     = useState(1)
@@ -543,7 +545,7 @@ export default function WithdrawalsPage() {
                 : paginated.map((req, i) => {
                     const sc = cashStatusConfig[req.status]
                     return (
-                      <tr key={req.id} className="border-b border-black/[0.04] hover:bg-[#F4F5F7]/70 transition-colors last:border-0">
+                      <tr key={req.id} onClick={() => navigate(`/admin/withdrawals/${req.id}`)} className="border-b border-black/[0.04] hover:bg-[#F4F5F7]/70 transition-colors last:border-0 cursor-pointer">
                         <td className="px-5 py-3.5">
                           <UserCell userName={req.userName} avatar={req.avatar} phone={req.phone} index={i} />
                         </td>

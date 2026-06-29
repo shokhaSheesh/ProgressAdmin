@@ -18,12 +18,16 @@ import BrandDetailPage from './pages/admin/BrandDetailPage'
 import OrdersPage from './pages/admin/OrdersPage'
 import OrderFormPage from './pages/admin/OrderFormPage'
 import WithdrawalsPage from './pages/admin/WithdrawalsPage'
+import WithdrawalsDetailPage from './pages/admin/WithdrawalsDetailPage'
 import BonusesPage from './pages/admin/BonusesPage'
+import RequestsPage from './pages/admin/RequestsPage'
 import BonusHistoryPage from './pages/admin/BonusHistoryPage'
 import DashboardPage from './pages/admin/DashboardPage'
 import NotificationsPage from './pages/admin/NotificationsPage'
 import NotificationFormPage from './pages/admin/NotificationFormPage'
 import InventoryQrPrintPage from './pages/admin/InventoryQrPrintPage'
+import BannersPage from './pages/admin/BannersPage'
+import BannerFormPage from './pages/admin/BannerFormPage'
 
 export default function App() {
   return (
@@ -38,6 +42,7 @@ export default function App() {
           <Route path="users" element={<UsersPage />} />
           <Route path="admin-users" element={<AdminUsersPage />} />
           <Route path="shops" element={<ShopsPage />} />
+          <Route path="requests" element={<RequestsPage />} />
           <Route path="regions" element={<RegionsPage />} />
           <Route path="locations" element={<LocationsPage />} />
           <Route path="products" element={<ProductsPage />} />
@@ -51,10 +56,14 @@ export default function App() {
           <Route path="transfer/:id/edit" element={<TransferFormPage />} />
           <Route path="brands" element={<BrandsPage />} />
           <Route path="brands/:id" element={<BrandDetailPage />} />
+          <Route path="banners" element={<BannersPage />} />
+          <Route path="banners/new" element={<BannerFormPage />} />
+          <Route path="banners/:id/edit" element={<BannerFormPage />} />
           <Route path="orders" element={<OrdersPage />} />
           <Route path="orders/new" element={<OrderFormPage />} />
           <Route path="orders/:id/edit" element={<OrderFormPage />} />
           <Route path="withdrawals" element={<WithdrawalsPage />} />
+          <Route path="withdrawals/:id" element={<WithdrawalsDetailPage />} />
           <Route path="bonuses" element={<BonusesPage />} />
           <Route path="bonus-history" element={<BonusHistoryPage />} />
           <Route path="roles" element={<div className="p-6 text-foreground font-semibold">Roles & Permissions — coming soon</div>} />

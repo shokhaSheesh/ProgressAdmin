@@ -151,7 +151,9 @@ export default function OrdersPage() {
 
   const filtered = orders.filter(o => {
     const q = search.trim().toLowerCase()
-    const matchSearch = !q || [o.orderNumber, o.buyerName, o.buyerPhone, o.shop, o.product.name, o.product.sku].some(v => v.toLowerCase().includes(q))
+    const matchSearch = !q || [o.orderNumber, o.buyerName, o.buyerPhone, o.shop,
+      ...o.products.map(p => p.name), ...o.products.map(p => p.sku),
+    ].some(v => v.toLowerCase().includes(q))
     return (statusFilter === 'all' || o.status === statusFilter) && matchSearch
   })
   const pageCount = Math.ceil(filtered.length / pageSize)
@@ -203,7 +205,7 @@ export default function OrdersPage() {
             <tr className="border-b border-black/[0.05]">
               <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Order #</th>
               <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Buyer</th>
-              <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Product</th>
+              <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Products</th>
               <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Bonus</th>
               <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Date</th>
               <th className="px-5 py-3 text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
@@ -234,10 +236,21 @@ export default function OrdersPage() {
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
-                      <ProductInitials name={order.product.name} image={order.product.image} size={32} />
-                      <div>
-                        <p className="text-[13px] font-semibold text-foreground">{order.product.name}</p>
-                        <p className="text-[11px] font-medium text-muted-foreground font-mono">{order.product.sku}</p>
+                      {/* Stacked avatars for up to 3 products */}
+                      <div className="flex shrink-0" style={{ marginRight: order.products.length > 1 ? (Math.min(order.products.length, 3) - 1) * 8 : 0 }}>
+                        {order.products.slice(0, 3).map((p, i) => (
+                          <div key={p.productId} style={{ marginLeft: i > 0 ? -10 : 0, zIndex: 3 - i }}>
+                            <ProductInitials name={p.name} image={p.image} size={28} />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-semibold text-foreground truncate">{order.products[0].name}</p>
+                        {order.products.length > 1 ? (
+                          <p className="text-[11px] font-semibold text-primary mt-0.5">+{order.products.length - 1} more item{order.products.length > 2 ? 's' : ''}</p>
+                        ) : (
+                          <p className="text-[11px] font-medium text-muted-foreground font-mono">{order.products[0].sku}</p>
+                        )}
                       </div>
                     </div>
                   </td>

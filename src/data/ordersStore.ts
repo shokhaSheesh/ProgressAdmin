@@ -20,7 +20,7 @@ export interface Order {
   shop: string
   date: string
   status: OrderStatus
-  product: OrderProduct
+  products: OrderProduct[]
   mechanicBonus: number
   createdAt: string
 }
@@ -32,7 +32,7 @@ export interface OrderInput {
   shop: string
   date: string
   status: OrderStatus
-  product: OrderProduct
+  products: OrderProduct[]
   mechanicBonus: number
 }
 
@@ -49,7 +49,8 @@ export const statusMeta: Record<OrderStatus, { label: string; bg: string; text: 
   cancelled:  { label: 'Cancelled',  bg: 'bg-red-50',     text: 'text-red-500',     dot: 'bg-red-400'     },
 }
 
-export const orderTotal = (o: Order | OrderInput) => o.product.price
+export const orderTotal = (o: Order | OrderInput) =>
+  o.products.reduce((sum, p) => sum + p.price, 0)
 
 // ─── Seed ──────────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,10 @@ let orders: Order[] = [
     buyerName: 'Alisher Nazarov', buyerPhone: '+998 90 123 45 67',
     shop: 'AutoZone Tashkent',
     date: 'Jan 15, 2026', status: 'completed',
-    product: { productId: 1, name: 'Spark Plug Iridium', sku: 'NGK-SP-001', image: '', price: 12500 },
+    products: [
+      { productId: 1, name: 'Spark Plug Iridium', sku: 'NGK-SP-001', image: '', price: 12500 },
+      { productId: 2, name: 'Brake Pads Set',     sku: 'BRB-BP-001', image: '', price: 185000 },
+    ],
     mechanicBonus: 5000, createdAt: 'Jan 15, 2026',
   },
   {
@@ -67,7 +71,9 @@ let orders: Order[] = [
     buyerName: 'Kamola Mirzayeva', buyerPhone: '+998 91 234 56 78',
     shop: 'CarParts Express',
     date: 'Jan 22, 2026', status: 'completed',
-    product: { productId: 2, name: 'Brake Pads Set', sku: 'BRB-BP-001', image: '', price: 185000 },
+    products: [
+      { productId: 2, name: 'Brake Pads Set', sku: 'BRB-BP-001', image: '', price: 185000 },
+    ],
     mechanicBonus: 12000, createdAt: 'Jan 22, 2026',
   },
   {
@@ -75,7 +81,11 @@ let orders: Order[] = [
     buyerName: 'Ruslan Xolmatov', buyerPhone: '+998 93 345 67 89',
     shop: 'MotoHub Andijan',
     date: 'Feb 3, 2026', status: 'processing',
-    product: { productId: 4, name: 'Shock Absorber', sku: 'MNR-SA-001', image: '', price: 320000 },
+    products: [
+      { productId: 4, name: 'Shock Absorber',  sku: 'MNR-SA-001', image: '', price: 320000 },
+      { productId: 9, name: 'Timing Belt Kit', sku: 'CNT-TB-001', image: '', price: 220000 },
+      { productId: 7, name: 'Wheel Bearing Kit', sku: 'SKF-WB-001', image: '', price: 145000 },
+    ],
     mechanicBonus: 0, createdAt: 'Feb 3, 2026',
   },
   {
@@ -83,7 +93,9 @@ let orders: Order[] = [
     buyerName: 'Zulfiya Rashidova', buyerPhone: '+998 94 456 78 90',
     shop: 'DriveZone Samarkand',
     date: 'Feb 18, 2026', status: 'pending',
-    product: { productId: 7, name: 'Wheel Bearing Kit', sku: 'SKF-WB-001', image: '', price: 145000 },
+    products: [
+      { productId: 7, name: 'Wheel Bearing Kit', sku: 'SKF-WB-001', image: '', price: 145000 },
+    ],
     mechanicBonus: 0, createdAt: 'Feb 18, 2026',
   },
   {
@@ -91,7 +103,10 @@ let orders: Order[] = [
     buyerName: 'Temur Sodiqov', buyerPhone: '+998 95 567 89 01',
     shop: 'TireHub Yunusabad',
     date: 'Mar 5, 2026', status: 'cancelled',
-    product: { productId: 9, name: 'Timing Belt Kit', sku: 'CNT-TB-001', image: '', price: 220000 },
+    products: [
+      { productId: 9, name: 'Timing Belt Kit', sku: 'CNT-TB-001', image: '', price: 220000 },
+      { productId: 8, name: 'Oxygen Sensor',   sku: 'BSH-OS-001', image: '', price: 175000 },
+    ],
     mechanicBonus: 0, createdAt: 'Mar 5, 2026',
   },
   {
@@ -99,7 +114,10 @@ let orders: Order[] = [
     buyerName: 'Nilufar Hasanova', buyerPhone: '+998 97 678 90 12',
     shop: 'AutoZone Tashkent',
     date: 'Mar 12, 2026', status: 'completed',
-    product: { productId: 8, name: 'Oxygen Sensor', sku: 'BSH-OS-001', image: '', price: 175000 },
+    products: [
+      { productId: 8, name: 'Oxygen Sensor',    sku: 'BSH-OS-001', image: '', price: 175000 },
+      { productId: 1, name: 'Spark Plug Iridium', sku: 'NGK-SP-001', image: '', price: 12500 },
+    ],
     mechanicBonus: 18000, createdAt: 'Mar 12, 2026',
   },
 ]
