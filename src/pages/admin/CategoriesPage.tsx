@@ -1,38 +1,59 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 type Status = 'active' | 'inactive'
 type Lang   = 'uz' | 'ru' | 'en'
 
 interface Category {
   id: number
+  parentId: number | null
   nameUz: string; nameRu: string; nameEn: string
   status: Status
   createdAt: string
 }
 
 const LANGS: { key: Lang; label: string; flag: string }[] = [
-  { key: 'uz', label: 'O\'zbekcha', flag: '🇺🇿' },
+  { key: 'uz', label: "O'zbekcha", flag: '🇺🇿' },
   { key: 'ru', label: 'Русский',   flag: '🇷🇺' },
   { key: 'en', label: 'English',   flag: '🇬🇧' },
 ]
 
+// ─── Seed data ────────────────────────────────────────────────────────────────
+
 const initialCategories: Category[] = [
-  { id: 1,  nameEn: 'Engine Parts',   nameRu: 'Детали двигателя',  nameUz: 'Dvigatel qismlari',  status: 'active',   createdAt: 'Jan 5, 2026'  },
-  { id: 2,  nameEn: 'Brakes',         nameRu: 'Тормоза',           nameUz: 'Tormozlar',          status: 'active',   createdAt: 'Jan 5, 2026'  },
-  { id: 3,  nameEn: 'Suspension',     nameRu: 'Подвеска',          nameUz: 'Osma',               status: 'active',   createdAt: 'Jan 8, 2026'  },
-  { id: 4,  nameEn: 'Electrical',     nameRu: 'Электрика',         nameUz: 'Elektr qismlari',    status: 'active',   createdAt: 'Jan 12, 2026' },
-  { id: 5,  nameEn: 'Body Parts',     nameRu: 'Кузовные детали',   nameUz: 'Kuzov qismlari',     status: 'active',   createdAt: 'Jan 20, 2026' },
-  { id: 6,  nameEn: 'Tires & Wheels', nameRu: 'Шины и диски',      nameUz: 'Shina va g\'ildirak', status: 'active',  createdAt: 'Feb 3, 2026'  },
-  { id: 7,  nameEn: 'Filters',        nameRu: 'Фильтры',           nameUz: 'Filtrlar',           status: 'active',   createdAt: 'Feb 15, 2026' },
-  { id: 8,  nameEn: 'Transmission',   nameRu: 'Трансмиссия',       nameUz: 'Transmissiya',       status: 'inactive', createdAt: 'Mar 1, 2026'  },
-  { id: 9,  nameEn: 'Exhaust',        nameRu: 'Выхлопная система',  nameUz: 'Chiqindi tizimi',    status: 'active',   createdAt: 'Mar 18, 2026' },
-  { id: 10, nameEn: 'Cooling System', nameRu: 'Система охлаждения', nameUz: 'Sovutish tizimi',    status: 'inactive', createdAt: 'Apr 5, 2026'  },
+  // Root categories
+  { id: 1,  parentId: null, nameEn: 'Engine Parts',    nameRu: 'Детали двигателя',    nameUz: 'Dvigatel qismlari',   status: 'active',   createdAt: 'Jan 5, 2026'  },
+  { id: 2,  parentId: null, nameEn: 'Brakes',           nameRu: 'Тормоза',             nameUz: 'Tormozlar',           status: 'active',   createdAt: 'Jan 5, 2026'  },
+  { id: 3,  parentId: null, nameEn: 'Suspension',       nameRu: 'Подвеска',            nameUz: 'Osma',                status: 'active',   createdAt: 'Jan 8, 2026'  },
+  { id: 4,  parentId: null, nameEn: 'Electrical',       nameRu: 'Электрика',           nameUz: 'Elektr qismlari',     status: 'active',   createdAt: 'Jan 12, 2026' },
+  { id: 5,  parentId: null, nameEn: 'Body Parts',       nameRu: 'Кузовные детали',     nameUz: 'Kuzov qismlari',      status: 'active',   createdAt: 'Jan 20, 2026' },
+  { id: 6,  parentId: null, nameEn: 'Tires & Wheels',   nameRu: 'Шины и диски',        nameUz: "Shina va g'ildirak",  status: 'active',   createdAt: 'Feb 3, 2026'  },
+  { id: 7,  parentId: null, nameEn: 'Filters',          nameRu: 'Фильтры',             nameUz: 'Filtrlar',            status: 'active',   createdAt: 'Feb 15, 2026' },
+  { id: 8,  parentId: null, nameEn: 'Transmission',     nameRu: 'Трансмиссия',         nameUz: 'Transmissiya',        status: 'inactive', createdAt: 'Mar 1, 2026'  },
+  { id: 9,  parentId: null, nameEn: 'Exhaust',          nameRu: 'Выхлопная система',   nameUz: 'Chiqindi tizimi',     status: 'active',   createdAt: 'Mar 18, 2026' },
+  { id: 10, parentId: null, nameEn: 'Cooling System',   nameRu: 'Система охлаждения',  nameUz: 'Sovutish tizimi',     status: 'inactive', createdAt: 'Apr 5, 2026'  },
+  // Sub-categories of Engine Parts (1)
+  { id: 11, parentId: 1,    nameEn: 'Oil System',       nameRu: 'Масляная система',    nameUz: 'Moy tizimi',          status: 'active',   createdAt: 'Apr 10, 2026' },
+  { id: 12, parentId: 1,    nameEn: 'Pistons & Rings',  nameRu: 'Поршни и кольца',     nameUz: 'Pistonlar va halqalar', status: 'active', createdAt: 'Apr 10, 2026' },
+  { id: 13, parentId: 1,    nameEn: 'Timing Parts',     nameRu: 'Детали ГРМ',          nameUz: 'GRM qismlari',        status: 'active',   createdAt: 'Apr 11, 2026' },
+  // Sub-categories of Brakes (2)
+  { id: 14, parentId: 2,    nameEn: 'Brake Pads',       nameRu: 'Тормозные колодки',   nameUz: 'Tormoz kolodkalari',  status: 'active',   createdAt: 'Apr 12, 2026' },
+  { id: 15, parentId: 2,    nameEn: 'Brake Discs',      nameRu: 'Тормозные диски',     nameUz: 'Tormoz disklari',     status: 'active',   createdAt: 'Apr 12, 2026' },
+  // Sub-categories of Filters (7)
+  { id: 16, parentId: 7,    nameEn: 'Oil Filters',      nameRu: 'Масляные фильтры',    nameUz: 'Moy filtrlari',       status: 'active',   createdAt: 'Apr 14, 2026' },
+  { id: 17, parentId: 7,    nameEn: 'Air Filters',      nameRu: 'Воздушные фильтры',   nameUz: 'Havo filtrlari',      status: 'active',   createdAt: 'Apr 14, 2026' },
+  { id: 18, parentId: 7,    nameEn: 'Fuel Filters',     nameRu: 'Топливные фильтры',   nameUz: 'Yoqilg\'i filtrlari', status: 'inactive', createdAt: 'Apr 15, 2026' },
+  // Sub-category of Suspension (3)
+  { id: 19, parentId: 3,    nameEn: 'Shock Absorbers',  nameRu: 'Амортизаторы',        nameUz: 'Amortizatorlar',      status: 'active',   createdAt: 'Apr 16, 2026' },
 ]
 
-const statusConfig: Record<Status, { label: string; bg: string; text: string }> = {
-  active:   { label: 'Active',   bg: 'bg-emerald-50', text: 'text-emerald-600' },
-  inactive: { label: 'Inactive', bg: 'bg-red-50',     text: 'text-red-500'     },
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const statusConfig: Record<Status, { label: string; bg: string; text: string; dot: string }> = {
+  active:   { label: 'Active',   bg: 'bg-emerald-50', text: 'text-emerald-600', dot: 'bg-emerald-500' },
+  inactive: { label: 'Inactive', bg: 'bg-red-50',     text: 'text-red-500',     dot: 'bg-red-400'     },
 }
 
 const primaryName = (c: Category) => c.nameEn || c.nameRu || c.nameUz
@@ -56,14 +77,19 @@ function ModalBackdrop({ onClose, children }: { onClose: () => void; children: R
   useEscClose(onClose)
   useLockScroll()
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()}>{children}</div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.45)' }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()}>{children}</div>
     </div>,
-    document.body
+    document.body,
   )
 }
 
-function DeleteModal({ name, onClose, onConfirm }: { name: string; onClose: () => void; onConfirm: () => void }) {
+// ─── Delete Modal ─────────────────────────────────────────────────────────────
+
+function DeleteModal({ name, childCount, onClose, onConfirm }: {
+  name: string; childCount: number; onClose: () => void; onConfirm: () => void
+}) {
   return (
     <ModalBackdrop onClose={onClose}>
       <div className="bg-card rounded-2xl w-[460px] max-w-full overflow-hidden" style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
@@ -77,7 +103,12 @@ function DeleteModal({ name, onClose, onConfirm }: { name: string; onClose: () =
           <div>
             <p className="text-[18px] font-extrabold text-foreground">Delete Category</p>
             <p className="text-[13px] font-medium text-muted-foreground mt-2 leading-relaxed">
-              Are you sure you want to delete <span className="font-bold text-foreground">{name}</span>? This action cannot be undone.
+              Are you sure you want to delete <span className="font-bold text-foreground">{name}</span>?
+              {childCount > 0 && (
+                <span className="block mt-1 text-amber-600 font-semibold">
+                  This will also delete {childCount} sub-categor{childCount === 1 ? 'y' : 'ies'}.
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -90,25 +121,45 @@ function DeleteModal({ name, onClose, onConfirm }: { name: string; onClose: () =
   )
 }
 
-interface FormState { nameUz: string; nameRu: string; nameEn: string; status: Status }
+// ─── Form Modal ───────────────────────────────────────────────────────────────
 
-function FormModal({ category, onClose, onSave }: { category: Category | null; onClose: () => void; onSave: (d: FormState) => void }) {
+interface FormState { nameUz: string; nameRu: string; nameEn: string; status: Status; parentId: number | null }
+
+function FormModal({ category, categories, onClose, onSave }: {
+  category: Category | null
+  categories: Category[]
+  onClose: () => void
+  onSave: (d: FormState) => void
+}) {
   const isEdit = category !== null
   const [form, setForm] = useState<FormState>({
-    nameUz: category?.nameUz ?? '', nameRu: category?.nameRu ?? '',
-    nameEn: category?.nameEn ?? '', status: category?.status ?? 'active',
+    nameUz:   category?.nameUz   ?? '',
+    nameRu:   category?.nameRu   ?? '',
+    nameEn:   category?.nameEn   ?? '',
+    status:   category?.status   ?? 'active',
+    parentId: category?.parentId ?? null,
   })
   const [lang, setLang] = useState<Lang>('uz')
 
   const fieldKey: Record<Lang, keyof FormState> = { uz: 'nameUz', ru: 'nameRu', en: 'nameEn' }
   const filled: Record<Lang, boolean> = {
-    uz: form.nameUz.trim() !== '', ru: form.nameRu.trim() !== '', en: form.nameEn.trim() !== '',
+    uz: form.nameUz.trim() !== '',
+    ru: form.nameRu.trim() !== '',
+    en: form.nameEn.trim() !== '',
   }
   const valid = filled.uz && filled.ru && filled.en
 
+  // Parent options: all categories except the one being edited and its descendants
+  function getDescendantIds(id: number): number[] {
+    const children = categories.filter(c => c.parentId === id)
+    return [id, ...children.flatMap(c => getDescendantIds(c.id))]
+  }
+  const excludeIds = isEdit ? new Set(getDescendantIds(category.id)) : new Set<number>()
+  const parentOptions = categories.filter(c => !excludeIds.has(c.id))
+
   return (
     <ModalBackdrop onClose={onClose}>
-      <div className="bg-card rounded-2xl w-[480px] max-w-full overflow-hidden" style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
+      <div className="bg-card rounded-2xl w-[500px] max-w-full overflow-hidden" style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-black/[0.06]">
           <div className="flex items-center gap-3">
@@ -129,14 +180,28 @@ function FormModal({ category, onClose, onSave }: { category: Category | null; o
           </button>
         </div>
 
-        <form onSubmit={(e) => { e.preventDefault(); if (valid) onSave(form) }} className="p-6 flex flex-col gap-4">
+        <form onSubmit={e => { e.preventDefault(); if (valid) onSave(form) }} className="p-6 flex flex-col gap-4">
+
+          {/* Parent Category */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Parent Category <span className="normal-case font-medium">(optional)</span></label>
+            <div className="relative">
+              <select value={form.parentId ?? ''} onChange={e => setForm(p => ({ ...p, parentId: e.target.value ? Number(e.target.value) : null }))}
+                className="w-full appearance-none bg-[#F4F5F7] text-foreground rounded-xl px-4 py-2.5 pr-9 text-[13px] font-medium border border-transparent focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer">
+                <option value="">— None (root category) —</option>
+                {parentOptions.map(c => (
+                  <option key={c.id} value={c.id}>{primaryName(c)}</option>
+                ))}
+              </select>
+              <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+            </div>
+          </div>
+
           {/* Name with language tabs */}
           <div className="flex flex-col gap-2">
             <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Name</label>
-
-            {/* Lang tabs */}
             <div className="flex items-center gap-1 p-1 bg-[#F4F5F7] rounded-xl">
-              {LANGS.map((l) => (
+              {LANGS.map(l => (
                 <button key={l.key} type="button" onClick={() => setLang(l.key)}
                   className={['flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[12px] font-semibold transition-all',
                     lang === l.key ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'].join(' ')}>
@@ -146,15 +211,12 @@ function FormModal({ category, onClose, onSave }: { category: Category | null; o
                 </button>
               ))}
             </div>
-
-            {LANGS.map((l) => (
-              lang === l.key && (
-                <input key={l.key} type="text" autoFocus
-                  value={form[fieldKey[l.key]] as string}
-                  onChange={(e) => setForm((p) => ({ ...p, [fieldKey[l.key]]: e.target.value }))}
-                  placeholder={`Category name in ${l.label}`}
-                  className="w-full bg-[#F4F5F7] text-foreground rounded-xl px-4 py-3 text-[13px] font-medium border border-transparent focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all" />
-              )
+            {LANGS.map(l => lang === l.key && (
+              <input key={l.key} type="text" autoFocus
+                value={form[fieldKey[l.key]] as string}
+                onChange={e => setForm(p => ({ ...p, [fieldKey[l.key]]: e.target.value }))}
+                placeholder={`Category name in ${l.label}`}
+                className="w-full bg-[#F4F5F7] text-foreground rounded-xl px-4 py-3 text-[13px] font-medium border border-transparent focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all" />
             ))}
             <p className="text-[11px] font-medium text-muted-foreground">Provide the name in all three languages.</p>
           </div>
@@ -163,11 +225,11 @@ function FormModal({ category, onClose, onSave }: { category: Category | null; o
           <div className="flex flex-col gap-1.5">
             <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Status</label>
             <div className="flex gap-2 h-[46px]">
-              {(['active', 'inactive'] as Status[]).map((s) => (
-                <button key={s} type="button" onClick={() => setForm((p) => ({ ...p, status: s }))}
+              {(['active', 'inactive'] as Status[]).map(s => (
+                <button key={s} type="button" onClick={() => setForm(p => ({ ...p, status: s }))}
                   className={['flex-1 flex items-center justify-center gap-1.5 rounded-xl text-[13px] font-semibold border-2 transition-all',
                     form.status === s
-                      ? (s === 'active' ? 'bg-emerald-50 border-emerald-400 text-emerald-600' : 'bg-red-50 border-red-400 text-red-500')
+                      ? s === 'active' ? 'bg-emerald-50 border-emerald-400 text-emerald-600' : 'bg-red-50 border-red-400 text-red-500'
                       : 'bg-[#F4F5F7] border-transparent text-muted-foreground hover:border-black/10'].join(' ')}>
                   <span className={['w-2 h-2 rounded-full shrink-0', form.status === s ? (s === 'active' ? 'bg-emerald-500' : 'bg-red-400') : 'bg-muted-foreground/30'].join(' ')} />
                   {s === 'active' ? 'Active' : 'Inactive'}
@@ -179,7 +241,8 @@ function FormModal({ category, onClose, onSave }: { category: Category | null; o
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="flex-1 rounded-xl py-3 text-[13px] font-semibold border-2 border-black/[0.08] text-foreground hover:bg-[#F4F5F7] transition-colors">Cancel</button>
             <button type="submit" disabled={!valid}
-              className="flex-1 rounded-xl py-3 text-[13px] font-semibold bg-primary text-white hover:bg-primary-hover active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed" style={{ boxShadow: '0 2px 8px rgba(37,99,235,0.3)' }}>
+              className="flex-1 rounded-xl py-3 text-[13px] font-semibold bg-primary text-white hover:bg-primary-hover active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ boxShadow: '0 2px 8px rgba(37,99,235,0.3)' }}>
               {isEdit ? 'Save Changes' : 'Add Category'}
             </button>
           </div>
@@ -188,6 +251,8 @@ function FormModal({ category, onClose, onSave }: { category: Category | null; o
     </ModalBackdrop>
   )
 }
+
+// ─── Status filter dropdown ───────────────────────────────────────────────────
 
 type StatusFilter = 'all' | 'active' | 'inactive'
 
@@ -199,7 +264,7 @@ function StatusFilterDropdown({ value, onChange }: { value: StatusFilter; onChan
     { value: 'active',   label: 'Active',   dot: 'bg-emerald-500' },
     { value: 'inactive', label: 'Inactive', dot: 'bg-red-500' },
   ]
-  const current = options.find((o) => o.value === value)!
+  const current = options.find(o => o.value === value)!
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
     document.addEventListener('mousedown', h)
@@ -207,20 +272,24 @@ function StatusFilterDropdown({ value, onChange }: { value: StatusFilter; onChan
   }, [])
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen((o) => !o)}
-        className={['flex items-center gap-2 h-9 px-4 rounded-xl text-[13px] font-semibold border-2 transition-all whitespace-nowrap', open || value !== 'all' ? 'border-primary text-primary bg-primary/5' : 'border-black/[0.08] text-foreground bg-card hover:border-black/20'].join(' ')}>
+      <button onClick={() => setOpen(o => !o)}
+        className={['flex items-center gap-2 h-9 px-4 rounded-xl text-[13px] font-semibold border-2 transition-all whitespace-nowrap',
+          open || value !== 'all' ? 'border-primary text-primary bg-primary/5' : 'border-black/[0.08] text-foreground bg-card hover:border-black/20'].join(' ')}>
         {current.dot && <span className={`w-2 h-2 rounded-full shrink-0 ${current.dot}`} />}
         {current.label}
-        <svg className={['w-4 h-4 transition-transform', open ? 'rotate-180' : ''].join(' ')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+        <svg className={['w-4 h-4 transition-transform', open ? 'rotate-180' : ''].join(' ')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {open && (
         <div className="absolute top-full mt-1.5 right-0 bg-card rounded-xl border border-black/[0.08] overflow-hidden z-20 min-w-[160px]" style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
-          {options.map((opt) => (
+          {options.map(opt => (
             <button key={opt.value} onClick={() => { onChange(opt.value); setOpen(false) }}
-              className={['w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium transition-colors', opt.value === value ? 'bg-primary/[0.08] text-primary font-semibold' : 'text-foreground hover:bg-[#F4F5F7]'].join(' ')}>
-              {opt.dot ? <span className={`w-2 h-2 rounded-full shrink-0 ${opt.dot}`} /> : <span className="w-2 h-2 rounded-full shrink-0 border-2 border-black/20" />}
+              className={['w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium transition-colors',
+                opt.value === value ? 'bg-primary/[0.08] text-primary font-semibold' : 'text-foreground hover:bg-[#F4F5F7]'].join(' ')}>
+              {opt.dot
+                ? <span className={`w-2 h-2 rounded-full shrink-0 ${opt.dot}`} />
+                : <span className="w-2 h-2 rounded-full shrink-0 border-2 border-black/20" />}
               {opt.label}
-              {opt.value === value && <svg className="w-3.5 h-3.5 text-primary ml-auto shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+              {opt.value === value && <svg className="w-3.5 h-3.5 text-primary ml-auto shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>}
             </button>
           ))}
         </div>
@@ -228,6 +297,96 @@ function StatusFilterDropdown({ value, onChange }: { value: StatusFilter; onChan
     </div>
   )
 }
+
+// ─── Tree view ────────────────────────────────────────────────────────────────
+
+interface TreeRowProps {
+  category: Category
+  categories: Category[]
+  depth: number
+  expanded: Set<number>
+  onToggle: (id: number) => void
+  onEdit: (c: Category) => void
+  onDelete: (c: Category) => void
+}
+
+function TreeRow({ category, categories, depth, expanded, onToggle, onEdit, onDelete }: TreeRowProps) {
+  const children  = categories.filter(c => c.parentId === category.id)
+  const hasKids   = children.length > 0
+  const isOpen    = expanded.has(category.id)
+  const sc        = statusConfig[category.status]
+
+  return (
+    <>
+      <tr className="border-b border-black/[0.04] hover:bg-[#FAFAFA] transition-colors last:border-0">
+        <td className="px-5 py-3.5">
+          <div className="flex items-center" style={{ paddingLeft: depth * 24 }}>
+            {/* Expand toggle */}
+            <button
+              onClick={() => hasKids && onToggle(category.id)}
+              className={['w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mr-2 transition-colors',
+                hasKids ? 'text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground cursor-pointer' : 'cursor-default opacity-0'].join(' ')}>
+              <svg className={['w-3.5 h-3.5 transition-transform', isOpen ? 'rotate-90' : ''].join(' ')}
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+
+            {/* Folder icon */}
+            <span className={['w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mr-2.5',
+              depth === 0 ? 'bg-blue-100' : 'bg-[#F4F5F7]'].join(' ')}>
+              <svg className={['w-3.5 h-3.5', depth === 0 ? 'text-blue-600' : 'text-muted-foreground'].join(' ')}
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+            </span>
+
+            <div>
+              <p className="text-[13px] font-semibold text-foreground">{category.nameEn}</p>
+              <p className="text-[11px] font-medium text-muted-foreground">
+                <span className="text-muted-foreground/60">UZ</span> {category.nameUz}
+                <span className="mx-1 text-muted-foreground/40">·</span>
+                <span className="text-muted-foreground/60">RU</span> {category.nameRu}
+              </p>
+            </div>
+          </div>
+        </td>
+        <td className="px-5 py-3.5">
+          {hasKids && (
+            <span className="text-[11px] font-semibold text-muted-foreground bg-[#F4F5F7] px-2 py-0.5 rounded-md">
+              {children.length} sub
+            </span>
+          )}
+        </td>
+        <td className="px-5 py-3.5">
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] font-semibold ${sc.bg} ${sc.text}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />{sc.label}
+          </span>
+        </td>
+        <td className="px-5 py-3.5 text-[13px] font-medium text-muted-foreground">{category.createdAt}</td>
+        <td className="px-5 py-3.5">
+          <div className="flex items-center gap-1 justify-end">
+            <button onClick={() => onEdit(category)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z" /></svg>
+            </button>
+            <button onClick={() => onDelete(category)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-red-50 hover:text-red-500 transition-all">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
+            </button>
+          </div>
+        </td>
+      </tr>
+      {isOpen && children.map(child => (
+        <TreeRow key={child.id} category={child} categories={categories} depth={depth + 1}
+          expanded={expanded} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} />
+      ))}
+    </>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+type ViewMode  = 'table' | 'tree'
+type ModalState = { kind: 'edit'; category: Category } | { kind: 'delete'; category: Category } | { kind: 'create' } | null
 
 const PAGE_SIZES = [20, 30, 40]
 
@@ -241,15 +400,20 @@ function PageSizeDropdown({ value, onChange }: { value: number; onChange: (n: nu
   }, [])
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen((o) => !o)}
-        className={['flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-all', open ? 'border-primary text-primary bg-primary/5' : 'border-black/[0.08] text-muted-foreground hover:border-black/20 hover:text-foreground'].join(' ')}>
+      <button onClick={() => setOpen(o => !o)}
+        className={['flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-all',
+          open ? 'border-primary text-primary bg-primary/5' : 'border-black/[0.08] text-muted-foreground hover:border-black/20 hover:text-foreground'].join(' ')}>
         {value}
-        <svg className={['w-3.5 h-3.5 transition-transform', open ? 'rotate-180' : ''].join(' ')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+        <svg className={['w-3.5 h-3.5 transition-transform', open ? 'rotate-180' : ''].join(' ')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {open && (
         <div className="absolute bottom-full mb-1.5 left-0 bg-card rounded-xl border border-black/[0.08] overflow-hidden z-20 min-w-[72px]" style={{ boxShadow: '0 -6px 20px rgba(0,0,0,0.12)' }}>
-          {PAGE_SIZES.map((s) => (
-            <button key={s} onClick={() => { onChange(s); setOpen(false) }} className={['w-full text-center px-4 py-2 text-[12px] font-semibold transition-colors', s === value ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-[#F4F5F7]'].join(' ')}>{s}</button>
+          {PAGE_SIZES.map(s => (
+            <button key={s} onClick={() => { onChange(s); setOpen(false) }}
+              className={['w-full text-center px-4 py-2 text-[12px] font-semibold transition-colors',
+                s === value ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-[#F4F5F7]'].join(' ')}>
+              {s}
+            </button>
           ))}
         </div>
       )}
@@ -257,17 +421,24 @@ function PageSizeDropdown({ value, onChange }: { value: number; onChange: (n: nu
   )
 }
 
-type ModalState = { kind: 'edit'; category: Category } | { kind: 'delete'; category: Category } | { kind: 'create' } | null
-
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>(initialCategories)
-  const [modal, setModal]       = useState<ModalState>(null)
-  const [page, setPage]         = useState(1)
-  const [pageSize, setPageSize] = useState(20)
-  const [search, setSearch]     = useState('')
+  const [modal, setModal]           = useState<ModalState>(null)
+  const [viewMode, setViewMode]     = useState<ViewMode>('table')
+  const [page, setPage]             = useState(1)
+  const [pageSize, setPageSize]     = useState(20)
+  const [search, setSearch]         = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [expanded, setExpanded]     = useState<Set<number>>(new Set([1, 2, 7]))
 
-  const filtered = categories.filter((c) => {
+  function toggleExpanded(id: number) {
+    setExpanded(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+  function expandAll()   { setExpanded(new Set(categories.map(c => c.id))) }
+  function collapseAll() { setExpanded(new Set()) }
+
+  // ── Table view data ──
+  const filtered = categories.filter(c => {
     const q = search.trim().toLowerCase()
     return (statusFilter === 'all' || c.status === statusFilter) &&
       (!q || c.nameEn.toLowerCase().includes(q) || c.nameRu.toLowerCase().includes(q) || c.nameUz.toLowerCase().includes(q))
@@ -278,16 +449,29 @@ export default function CategoriesPage() {
   const handleSearch = (v: string) => { setSearch(v); setPage(1) }
   const handleFilter = (v: StatusFilter) => { setStatusFilter(v); setPage(1) }
 
-  const delta = 2
-  const pStart = Math.max(1, page - delta)
-  const pEnd   = Math.min(pageCount, page + delta)
-  const range  = Array.from({ length: pEnd - pStart + 1 }, (_, i) => pStart + i)
+  // ── Tree view data (roots only — children rendered recursively) ──
+  const treeRoots = categories.filter(c => c.parentId === null &&
+    (statusFilter === 'all' || c.status === statusFilter) &&
+    (() => {
+      const q = search.trim().toLowerCase()
+      return !q || c.nameEn.toLowerCase().includes(q) || c.nameRu.toLowerCase().includes(q) || c.nameUz.toLowerCase().includes(q)
+    })()
+  )
+
+  // ── Counts ──
+  const rootCount = categories.filter(c => c.parentId === null).length
+  const subCount  = categories.filter(c => c.parentId !== null).length
+
+  function getDescendantIds(id: number): number[] {
+    const children = categories.filter(c => c.parentId === id)
+    return [id, ...children.flatMap(c => getDescendantIds(c.id))]
+  }
 
   const handleSave = (d: FormState) => {
     if (modal?.kind === 'edit') {
-      setCategories((prev) => prev.map((c) => c.id === modal.category.id ? { ...c, ...d } : c))
+      setCategories(prev => prev.map(c => c.id === modal.category.id ? { ...c, ...d } : c))
     } else {
-      setCategories((prev) => [...prev, {
+      setCategories(prev => [...prev, {
         id: Date.now(), ...d,
         createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       }])
@@ -296,17 +480,59 @@ export default function CategoriesPage() {
   }
 
   const handleDelete = () => {
-    if (modal?.kind === 'delete') {
-      setCategories((prev) => prev.filter((c) => c.id !== modal.category.id))
-      setModal(null)
-    }
+    if (modal?.kind !== 'delete') return
+    const toRemove = new Set(getDescendantIds(modal.category.id))
+    setCategories(prev => prev.filter(c => !toRemove.has(c.id)))
+    setModal(null)
   }
+
+  const thCls = 'px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap'
+
+  const ActionButtons = ({ category }: { category: Category }) => (
+    <div className="flex items-center gap-1 justify-end">
+      <button onClick={() => setModal({ kind: 'edit', category })} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all">
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z" /></svg>
+      </button>
+      <button onClick={() => setModal({ kind: 'delete', category })} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-red-50 hover:text-red-500 transition-all">
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
+      </button>
+    </div>
+  )
 
   return (
     <div className="p-6 flex flex-col gap-6">
       <div>
         <h1 className="text-[22px] font-extrabold text-foreground tracking-tight">Categories</h1>
-        <p className="text-[13px] font-medium text-muted-foreground mt-0.5">Manage product categories in all languages</p>
+        <p className="text-[13px] font-medium text-muted-foreground mt-0.5">Manage product categories and sub-categories in all languages</p>
+      </div>
+
+      {/* KPI cards */}
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          {
+            label: 'Total Categories', value: categories.length,
+            icon: <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /><path d="M3 17.5A3.5 3.5 0 0 0 6.5 21M3 14v.01" /><path d="M7 14a3 3 0 0 1 3 3v4" /></svg>,
+            iconBg: 'bg-blue-100', iconColor: 'text-blue-600',
+          },
+          {
+            label: 'Root Categories', value: rootCount,
+            icon: <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>,
+            iconBg: 'bg-violet-100', iconColor: 'text-violet-600',
+          },
+          {
+            label: 'Sub-categories', value: subCount,
+            icon: <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h2M3 12h8M3 19h14M9 5l4 7-4 7" /></svg>,
+            iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600',
+          },
+        ].map(({ label, value, icon, iconBg, iconColor }) => (
+          <div key={label} className="bg-card rounded-2xl p-5 flex items-center gap-4 border border-black/[0.04]" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}>{icon}</div>
+            <div>
+              <p className="text-[12px] font-semibold text-muted-foreground">{label}</p>
+              <p className="text-[22px] font-extrabold text-foreground leading-none mt-0.5">{value}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Table card */}
@@ -315,9 +541,9 @@ export default function CategoriesPage() {
         <div className="px-5 py-3.5 border-b border-black/[0.06] flex items-center gap-3">
           <div className="relative flex-1">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
             </svg>
-            <input type="text" value={search} onChange={(e) => handleSearch(e.target.value)} placeholder="Search by category name…"
+            <input type="text" value={search} onChange={e => handleSearch(e.target.value)} placeholder="Search by category name…"
               className="w-full h-9 pl-9 pr-8 bg-[#F4F5F7] rounded-xl text-[13px] font-medium text-foreground border border-transparent focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all" />
             {search && (
               <button onClick={() => handleSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-black/10 flex items-center justify-center hover:bg-black/20 transition-colors">
@@ -325,108 +551,165 @@ export default function CategoriesPage() {
               </button>
             )}
           </div>
+
           <StatusFilterDropdown value={statusFilter} onChange={handleFilter} />
+
+          {/* View toggle */}
+          <div className="flex items-center gap-1 p-1 bg-[#F4F5F7] rounded-xl shrink-0">
+            {([
+              { mode: 'table' as ViewMode, icon: <><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></>, title: 'Table view' },
+              { mode: 'tree'  as ViewMode, icon: <><path d="M3 5h2M3 12h8M3 19h14M9 5l4 7-4 7" /></>,                                                                                                                                                                                         title: 'Tree view'  },
+            ]).map(({ mode, icon, title }) => (
+              <button key={mode} title={title} onClick={() => setViewMode(mode)}
+                className={['w-8 h-8 rounded-lg flex items-center justify-center transition-all',
+                  viewMode === mode ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'].join(' ')}>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">{icon}</svg>
+              </button>
+            ))}
+          </div>
+
+          {/* Tree expand/collapse */}
+          {viewMode === 'tree' && (
+            <div className="flex items-center gap-1 shrink-0">
+              <button onClick={expandAll} className="h-9 px-3 rounded-xl text-[12px] font-semibold border border-black/[0.08] text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-colors whitespace-nowrap">Expand all</button>
+              <button onClick={collapseAll} className="h-9 px-3 rounded-xl text-[12px] font-semibold border border-black/[0.08] text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-colors whitespace-nowrap">Collapse</button>
+            </div>
+          )}
+
           <div className="w-px h-6 bg-black/[0.08] shrink-0" />
           <button onClick={() => setModal({ kind: 'create' })}
-            className="bg-primary text-white rounded-xl px-4 py-2 text-[13px] font-semibold hover:bg-primary-hover active:scale-[0.98] transition-all flex items-center gap-1.5 shrink-0"
+            className="bg-primary text-white rounded-xl px-4 py-2 text-[13px] font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center gap-1.5 shrink-0"
             style={{ boxShadow: '0 2px 8px rgba(37,99,235,0.3)' }}>
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             Add Category
           </button>
         </div>
 
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-black/[0.05]">
-              <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-12">#</th>
-              <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Name</th>
-              <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
-              <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Created At</th>
-              <th className="px-5 py-3 text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginated.length === 0 ? (
-              <tr><td colSpan={5} className="px-5 py-16 text-center">
-                <div className="flex flex-col items-center gap-2">
-                  <svg className="w-8 h-8 text-muted-foreground/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                  <p className="text-[13px] font-semibold text-muted-foreground">No results match your search</p>
-                  <button onClick={() => { handleSearch(''); handleFilter('all') }} className="text-[12px] font-semibold text-primary hover:underline">Clear filters</button>
-                </div>
-              </td></tr>
-            ) : paginated.map((category, i) => {
-              const sc = statusConfig[category.status]
-              return (
-                <tr key={category.id} className="border-b border-black/[0.04] hover:bg-[#F4F5F7]/70 transition-colors last:border-0">
-                  <td className="px-5 py-3.5 text-[13px] font-medium text-muted-foreground">{(page - 1) * pageSize + i + 1}</td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-[14px] font-semibold text-foreground">{category.nameEn}</span>
-                      <span className="text-[12px] font-medium text-muted-foreground">
-                        <span className="text-muted-foreground/60">UZ</span> {category.nameUz}
-                        <span className="mx-1.5 text-muted-foreground/40">·</span>
-                        <span className="text-muted-foreground/60">RU</span> {category.nameRu}
-                      </span>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-[#F8F9FB] border-b border-black/[0.06]">
+              <tr>
+                {viewMode === 'table' && <th className={thCls + ' w-12'}>#</th>}
+                <th className={thCls}>Name</th>
+                {viewMode === 'tree' && <th className={thCls}>Sub-categories</th>}
+                <th className={thCls}>Status</th>
+                <th className={thCls}>Created At</th>
+                <th className={thCls + ' text-right'}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* ── Table view ── */}
+              {viewMode === 'table' && (
+                paginated.length === 0 ? (
+                  <tr><td colSpan={5} className="px-5 py-16 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <svg className="w-8 h-8 text-muted-foreground/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>
+                      <p className="text-[13px] font-semibold text-muted-foreground">No results match your search</p>
+                      <button onClick={() => { handleSearch(''); handleFilter('all') }} className="text-[12px] font-semibold text-primary hover:underline">Clear filters</button>
                     </div>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-xl ${sc.bg} ${sc.text}`}>{sc.label}</span>
-                  </td>
-                  <td className="px-5 py-3.5 text-[13px] font-medium text-muted-foreground">{category.createdAt}</td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-1 justify-end">
-                      <button title="Edit" onClick={() => setModal({ kind: 'edit', category })} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all">
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z" /></svg>
-                      </button>
-                      <button title="Delete" onClick={() => setModal({ kind: 'delete', category })} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-red-50 hover:text-red-500 transition-all">
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+                  </td></tr>
+                ) : paginated.map((category, i) => {
+                  const sc = statusConfig[category.status]
+                  const parent = category.parentId ? categories.find(c => c.id === category.parentId) : null
+                  return (
+                    <tr key={category.id} className="border-b border-black/[0.04] hover:bg-[#F4F5F7]/70 transition-colors last:border-0">
+                      <td className="px-5 py-3.5 text-[13px] font-medium text-muted-foreground">{(page - 1) * pageSize + i + 1}</td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[14px] font-semibold text-foreground">{category.nameEn}</span>
+                            {parent && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground bg-[#F4F5F7] px-2 py-0.5 rounded-md">
+                                <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+                                {primaryName(parent)}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[12px] font-medium text-muted-foreground">
+                            <span className="text-muted-foreground/60">UZ</span> {category.nameUz}
+                            <span className="mx-1.5 text-muted-foreground/40">·</span>
+                            <span className="text-muted-foreground/60">RU</span> {category.nameRu}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] font-semibold ${sc.bg} ${sc.text}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />{sc.label}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-[13px] font-medium text-muted-foreground">{category.createdAt}</td>
+                      <td className="px-5 py-3.5"><ActionButtons category={category} /></td>
+                    </tr>
+                  )
+                })
+              )}
 
-        {/* Pagination footer */}
-        <div className="px-5 py-4 border-t border-black/[0.06] flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3">
-            <span className="text-[12px] font-medium text-muted-foreground">
-              Showing {filtered.length === 0 ? 0 : Math.min((page - 1) * pageSize + 1, filtered.length)}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="text-[12px] font-medium text-muted-foreground">Rows per page:</span>
-              <PageSizeDropdown value={pageSize} onChange={(s) => { setPageSize(s); setPage(1) }} />
+              {/* ── Tree view ── */}
+              {viewMode === 'tree' && (
+                treeRoots.length === 0 ? (
+                  <tr><td colSpan={5} className="px-5 py-16 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <svg className="w-8 h-8 text-muted-foreground/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>
+                      <p className="text-[13px] font-semibold text-muted-foreground">No results match your search</p>
+                      <button onClick={() => { handleSearch(''); handleFilter('all') }} className="text-[12px] font-semibold text-primary hover:underline">Clear filters</button>
+                    </div>
+                  </td></tr>
+                ) : treeRoots.map(root => (
+                  <TreeRow key={root.id} category={root} categories={categories} depth={0}
+                    expanded={expanded} onToggle={toggleExpanded}
+                    onEdit={c => setModal({ kind: 'edit', category: c })}
+                    onDelete={c => setModal({ kind: 'delete', category: c })} />
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination footer (table view only) */}
+        {viewMode === 'table' && (
+          <div className="px-5 py-4 border-t border-black/[0.06] flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <span className="text-[12px] font-medium text-muted-foreground">
+                Showing {filtered.length === 0 ? 0 : Math.min((page - 1) * pageSize + 1, filtered.length)}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] font-medium text-muted-foreground">Rows per page:</span>
+                <PageSizeDropdown value={pageSize} onChange={s => { setPageSize(s); setPage(1) }} />
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              {(() => {
+                const delta = 2
+                const pStart = Math.max(1, page - delta)
+                const pEnd   = Math.min(pageCount, page + delta)
+                const range  = Array.from({ length: pEnd - pStart + 1 }, (_, i) => pStart + i)
+                return <>
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+                  </button>
+                  {range[0] > 1 && (<><button onClick={() => setPage(1)} className="w-8 h-8 rounded-lg text-[13px] font-semibold text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all">1</button>{range[0] > 2 && <span className="w-8 h-8 flex items-center justify-center text-[13px] text-muted-foreground">…</span>}</>)}
+                  {range.map(p => <button key={p} onClick={() => setPage(p)} className={['w-8 h-8 rounded-lg text-[13px] font-semibold transition-all', p === page ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground'].join(' ')}>{p}</button>)}
+                  {range[range.length - 1] < pageCount && (<>{range[range.length - 1] < pageCount - 1 && <span className="w-8 h-8 flex items-center justify-center text-[13px] text-muted-foreground">…</span>}<button onClick={() => setPage(pageCount)} className="w-8 h-8 rounded-lg text-[13px] font-semibold text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all">{pageCount}</button></>)}
+                  <button onClick={() => setPage(p => Math.min(pageCount, p + 1))} disabled={page === pageCount || pageCount === 0} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+                  </button>
+                </>
+              })()}
             </div>
           </div>
-          <div className="flex items-center gap-1">
-            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all disabled:opacity-30 disabled:cursor-not-allowed">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
-            </button>
-            {range[0] > 1 && (<>
-              <button onClick={() => setPage(1)} className="w-8 h-8 rounded-lg text-[13px] font-semibold text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all">1</button>
-              {range[0] > 2 && <span className="w-8 h-8 flex items-center justify-center text-[13px] text-muted-foreground">…</span>}
-            </>)}
-            {range.map((p) => (
-              <button key={p} onClick={() => setPage(p)} className={['w-8 h-8 rounded-lg text-[13px] font-semibold transition-all', p === page ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground'].join(' ')}>{p}</button>
-            ))}
-            {range[range.length - 1] < pageCount && (<>
-              {range[range.length - 1] < pageCount - 1 && <span className="w-8 h-8 flex items-center justify-center text-[13px] text-muted-foreground">…</span>}
-              <button onClick={() => setPage(pageCount)} className="w-8 h-8 rounded-lg text-[13px] font-semibold text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all">{pageCount}</button>
-            </>)}
-            <button onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount || pageCount === 0} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all disabled:opacity-30 disabled:cursor-not-allowed">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
-            </button>
-          </div>
-        </div>
+        )}
       </div>
 
-      {modal?.kind === 'edit'   && <FormModal category={modal.category} onClose={() => setModal(null)} onSave={handleSave} />}
-      {modal?.kind === 'create' && <FormModal category={null}           onClose={() => setModal(null)} onSave={handleSave} />}
-      {modal?.kind === 'delete' && <DeleteModal name={primaryName(modal.category)} onClose={() => setModal(null)} onConfirm={handleDelete} />}
+      {modal?.kind === 'edit'   && <FormModal category={modal.category} categories={categories} onClose={() => setModal(null)} onSave={handleSave} />}
+      {modal?.kind === 'create' && <FormModal category={null}           categories={categories} onClose={() => setModal(null)} onSave={handleSave} />}
+      {modal?.kind === 'delete' && (
+        <DeleteModal
+          name={primaryName(modal.category)}
+          childCount={categories.filter(c => c.parentId === modal.category.id).length}
+          onClose={() => setModal(null)}
+          onConfirm={handleDelete}
+        />
+      )}
     </div>
   )
 }

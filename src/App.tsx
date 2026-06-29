@@ -15,6 +15,7 @@ import TransfersPage from './pages/admin/TransfersPage'
 import TransferFormPage from './pages/admin/TransferFormPage'
 import BrandsPage from './pages/admin/BrandsPage'
 import BrandDetailPage from './pages/admin/BrandDetailPage'
+import ManufacturerBrandsPage from './pages/admin/ManufacturerBrandsPage'
 import OrdersPage from './pages/admin/OrdersPage'
 import OrderFormPage from './pages/admin/OrderFormPage'
 import WithdrawalsPage from './pages/admin/WithdrawalsPage'
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="transfer/:id/edit" element={<TransferFormPage />} />
           <Route path="brands" element={<BrandsPage />} />
           <Route path="brands/:id" element={<BrandDetailPage />} />
+          <Route path="manufacturer-brands" element={<ManufacturerBrandsPage />} />
           <Route path="banners" element={<BannersPage />} />
           <Route path="banners/new" element={<BannerFormPage />} />
           <Route path="banners/:id/edit" element={<BannerFormPage />} />

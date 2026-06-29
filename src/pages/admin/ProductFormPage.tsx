@@ -1,25 +1,28 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  CATEGORIES, BRANDS, LOCATIONS, generateVariants, hasValidVariants,
+  CATEGORIES, BRANDS, MANUFACTURER_BRANDS, MODELS, LOCATIONS,
+  generateVariants, hasValidVariants,
   getProduct, createProduct, updateProduct, DEFAULT_VARIANT_KEY,
-  type Status, type AttrDef, type Variant, type ProductInput, type VariantBase,
+  type Status, type AttrDef, type Variant, type ProductInput, type VariantBase, type Specification,
 } from '../../data/productsStore'
 
 // ─── Form state ────────────────────────────────────────────────────────────────
 
 interface FormData {
   name: string; sku: string
-  category: string; brand: string; model: string
+  category: string; brand: string; manufacturerBrand: string; model: string
   location: string; description: string
+  specifications: Specification[]
   images: string[]; status: Status
   attributes: AttrDef[]; variants: Variant[]
 }
 
 const emptyForm: FormData = {
   name: '', sku: '',
-  category: '', brand: '', model: '',
+  category: '', brand: '', manufacturerBrand: '', model: '',
   location: '', description: '',
+  specifications: [],
   images: [], status: 'active',
   attributes: [], variants: [],
 }
@@ -156,10 +159,9 @@ function Card({ title, children, right }: { title?: string; children: React.Reac
 // ─── Variant field columns ───────────────────────────────────────────────────────
 
 const variantCols = [
-  { key: 'price' as const,     label: 'Price',      w: 'w-[140px]', type: 'number', ph: '0' },
-  { key: 'quantity' as const,  label: 'Quantity',   w: 'w-[120px]', type: 'number', ph: '0' },
-  { key: 'sku' as const,       label: 'SKU',        w: 'w-[180px]', type: 'text',   ph: 'Auto', mono: true },
-  { key: 'brandName' as const, label: 'Brand name', w: 'w-[180px]', type: 'text',   ph: 'Brand' },
+  { key: 'price' as const,    label: 'Price',    w: 'w-[140px]', type: 'number', ph: '0' },
+  { key: 'quantity' as const, label: 'Quantity', w: 'w-[120px]', type: 'number', ph: '0' },
+  { key: 'sku' as const,      label: 'SKU',      w: 'w-[180px]', type: 'text',   ph: 'Auto', mono: true },
 ]
 
 // ─── Page ────────────────────────────────────────────────────────────────────────
@@ -180,8 +182,11 @@ export default function ProductFormPage() {
     if (!existing) return emptyForm
     return {
       name: existing.name, sku: existing.sku,
-      category: existing.category, brand: existing.brand, model: existing.model,
+      category: existing.category, brand: existing.brand,
+      manufacturerBrand: existing.manufacturerBrand ?? '',
+      model: existing.model,
       location: existing.location, description: existing.description,
+      specifications: existing.specifications ?? [],
       images: existing.images.length ? existing.images : (existing.image ? [existing.image] : []),
       status: existing.status, attributes: existing.attributes,
       variants: existing.variants.length
@@ -249,8 +254,11 @@ export default function ProductFormPage() {
 
     const input: ProductInput = {
       name: form.name.trim(), sku: form.sku.trim(),
-      category: form.category, brand: form.brand.trim(), model: form.model.trim(),
+      category: form.category, brand: form.brand.trim(),
+      manufacturerBrand: form.manufacturerBrand,
+      model: form.model.trim(),
       location: form.location, description: form.description,
+      specifications: form.specifications.filter(s => s.key.trim() && s.value.trim()),
       images: form.images, image: form.images[0] ?? '', status: form.status,
       hasVariants,
       attributes: hasVariants ? form.attributes : [],
@@ -338,6 +346,14 @@ export default function ProductFormPage() {
             <Card title="Basic Information">
               <div className="flex flex-col gap-5">
 
+                {/* Name */}
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelCls}>Name <span className="text-red-500">*</span></label>
+                  <input type="text" value={form.name} onChange={e => patch({ name: e.target.value })} placeholder="Product name"
+                    className={[inputCls, invalid(!form.name.trim()) ? 'ring-2 ring-red-300 border-red-300' : ''].join(' ')} />
+                  {invalid(!form.name.trim()) && <span className="text-[11px] font-medium text-red-500">Name is required</span>}
+                </div>
+
                 {/* Category */}
                 <div className="flex flex-col gap-1.5">
                   <label className={labelCls}>Category <span className="text-red-500">*</span></label>
@@ -358,24 +374,22 @@ export default function ProductFormPage() {
                   </div>
                 </div>
 
-                {/* Name */}
-                <div className="flex flex-col gap-1.5">
-                  <label className={labelCls}>Name <span className="text-red-500">*</span></label>
-                  <input type="text" value={form.name} onChange={e => patch({ name: e.target.value })} placeholder="Name"
-                    className={[inputCls, invalid(!form.name.trim()) ? 'ring-2 ring-red-300 border-red-300' : ''].join(' ')} />
-                  {invalid(!form.name.trim()) && <span className="text-[11px] font-medium text-red-500">Name is required</span>}
-                </div>
-
-                {/* Brand / Model */}
+                {/* Manufacturer Brand / Brand (car) */}
                 <div className="grid grid-cols-2 gap-5">
+                  <div className="flex flex-col gap-1.5">
+                    <label className={labelCls}>Manufacturer Brand</label>
+                    <SearchableDropdown value={form.manufacturerBrand} options={MANUFACTURER_BRANDS} placeholder="Select manufacturer" onChange={v => patch({ manufacturerBrand: v })} allowCustom />
+                  </div>
                   <div className="flex flex-col gap-1.5">
                     <label className={labelCls}>Brand</label>
                     <SearchableDropdown value={form.brand} options={BRANDS} placeholder="Select a brand" onChange={v => patch({ brand: v })} allowCustom />
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className={labelCls}>Model</label>
-                    <input type="text" value={form.model} onChange={e => patch({ model: e.target.value })} placeholder="Select a model" className={inputCls} />
-                  </div>
+                </div>
+
+                {/* Model */}
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelCls}>Model</label>
+                  <SearchableDropdown value={form.model} options={MODELS} placeholder="Select or type a model" onChange={v => patch({ model: v })} allowCustom />
                 </div>
 
                 {/* Description */}
@@ -383,6 +397,60 @@ export default function ProductFormPage() {
                   <label className={labelCls}>Description <span className="text-red-500">*</span></label>
                   <RichText value={form.description} onChange={v => patch({ description: v })} placeholder="Product description" />
                   {invalid(!form.description.trim()) && <span className="text-[11px] font-medium text-red-500">Description is required</span>}
+                </div>
+
+                {/* Specifications */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <label className={labelCls}>Specifications</label>
+                    <button type="button"
+                      onClick={() => patch({ specifications: [...form.specifications, { key: '', value: '' }] })}
+                      className="text-[12px] font-bold text-primary hover:text-blue-700 transition-colors flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                      Add spec
+                    </button>
+                  </div>
+
+                  {form.specifications.length === 0 ? (
+                    <button type="button"
+                      onClick={() => patch({ specifications: [{ key: '', value: '' }] })}
+                      className="w-full rounded-xl border border-dashed border-black/[0.12] hover:border-primary/40 py-6 text-[13px] font-semibold text-muted-foreground hover:text-primary transition-all flex flex-col items-center gap-1.5">
+                      <svg className="w-5 h-5 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" /><rect x="9" y="3" width="6" height="4" rx="1" /><line x1="9" y1="12" x2="15" y2="12" /><line x1="9" y1="16" x2="12" y2="16" /></svg>
+                      Add specifications (e.g. Thread Size, Voltage, Weight…)
+                    </button>
+                  ) : (
+                    <div className="rounded-xl border border-black/[0.08] overflow-hidden">
+                      {/* Header row */}
+                      <div className="grid grid-cols-[1fr_1fr_36px] gap-0 bg-[#F8F9FB] border-b border-black/[0.07] px-4 py-2">
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Attribute</span>
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-3">Value</span>
+                        <span />
+                      </div>
+                      {form.specifications.map((spec, idx) => (
+                        <div key={idx} className="grid grid-cols-[1fr_1fr_36px] items-center border-b border-black/[0.05] last:border-0 px-4 py-2 gap-0 hover:bg-[#FAFBFC] transition-colors">
+                          <input type="text" value={spec.key} onChange={e => {
+                            const s = [...form.specifications]; s[idx] = { ...s[idx], key: e.target.value }; patch({ specifications: s })
+                          }} placeholder="e.g. Thread Size"
+                            className="bg-transparent text-[13px] font-medium text-foreground focus:outline-none placeholder:text-muted-foreground/50 pr-3 py-1 border-r border-black/[0.07]" />
+                          <input type="text" value={spec.value} onChange={e => {
+                            const s = [...form.specifications]; s[idx] = { ...s[idx], value: e.target.value }; patch({ specifications: s })
+                          }} placeholder="e.g. M20×1.5"
+                            className="bg-transparent text-[13px] font-medium text-foreground focus:outline-none placeholder:text-muted-foreground/50 px-3 py-1" />
+                          <button type="button"
+                            onClick={() => patch({ specifications: form.specifications.filter((_, i) => i !== idx) })}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground/50 hover:bg-red-50 hover:text-red-400 transition-all">
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                          </button>
+                        </div>
+                      ))}
+                      <button type="button"
+                        onClick={() => patch({ specifications: [...form.specifications, { key: '', value: '' }] })}
+                        className="w-full px-4 py-2.5 text-[12px] font-semibold text-muted-foreground hover:text-primary hover:bg-[#FAFBFC] transition-colors text-left border-t border-dashed border-black/[0.07] flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                        Add row
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Images */}

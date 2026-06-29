@@ -22,15 +22,22 @@ export interface Variant {
   selected: boolean
 }
 
+export interface Specification {
+  key: string
+  value: string
+}
+
 export interface Product {
   id: number
   name: string
   sku: string
   category: string
   brand: string
+  manufacturerBrand: string
   model: string
   location: string
   description: string
+  specifications: Specification[]
   price: number
   image: string
   images: string[]
@@ -43,8 +50,9 @@ export interface Product {
 
 export interface ProductInput {
   name: string; sku: string
-  category: string; brand: string; model: string
+  category: string; brand: string; manufacturerBrand: string; model: string
   location: string; description: string
+  specifications: Specification[]
   image: string; images: string[]; status: Status
   hasVariants: boolean; attributes: AttrDef[]; variants: Variant[]
 }
@@ -59,6 +67,17 @@ export const CATEGORIES = [
 export const BRANDS = [
   'Bosch', 'NGK', 'Denso', 'Monroe', 'Brembo',
   'Mahle', 'Mann', 'Sachs', 'SKF', 'Febi', 'Valeo', 'Continental',
+]
+
+export const MANUFACTURER_BRANDS = [
+  'Bosch', 'NGK', 'Brembo', 'Mann Filter', 'Gates', 'Bilstein',
+  'Hella', 'Febi Bilstein', 'Sachs', 'SKF', 'Continental', 'Valeo',
+  'Denso', 'Monroe', 'Mahle', 'TRW', 'Delphi', 'Pierburg',
+]
+
+export const MODELS = [
+  'IRIDIUM IX', 'P06005', 'W 712/22', 'OESpectrum', 'C 2882', '6PK1546',
+  'VKBA3546', '0 258 006', 'CT1139K3', '0 986 479', 'F026402067', 'F026400368',
 ]
 
 export const LOCATIONS = [
@@ -80,7 +99,7 @@ const fillVariant = (v: SeedVariant): Variant => ({
 })
 
 const fillProduct = (p: SeedProduct): Product => ({
-  description: '', image: '', images: [],
+  description: '', image: '', images: [], manufacturerBrand: '', specifications: [],
   ...p,
   variants: p.variants.map(fillVariant),
 })
