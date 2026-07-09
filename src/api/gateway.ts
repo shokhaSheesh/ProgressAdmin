@@ -41,15 +41,16 @@ export async function callGateway<T>(method: string, objectData: Record<string, 
   }
   if (token) headers.Authorization = `Bearer ${token}`
 
+  const data: Record<string, unknown> = {
+    method,
+    object_data: objectData,
+  }
+  if (token) data.bearer_token = token
+
   const res = await fetch(functionUrl(), {
     method: 'POST',
     headers,
-    body: JSON.stringify({
-      data: {
-        method,
-        object_data: objectData,
-      },
-    }),
+    body: JSON.stringify({ data }),
   })
 
   const json = await res.json().catch(() => null)
