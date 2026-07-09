@@ -18,9 +18,6 @@ interface Category {
 interface CategoryRow {
   guid: string
   name?: string
-  name_uz?: string
-  name_ru?: string
-  name_en?: string
   categories_id?: string | null
   is_active?: boolean
   created_at?: string
@@ -58,9 +55,9 @@ function mapCategory(row: CategoryRow): Category {
   return {
     id: row.guid,
     parentId: row.categories_id || null,
-    nameUz: row.name_uz || name,
-    nameRu: row.name_ru || name,
-    nameEn: row.name_en || name,
+    nameUz: name,
+    nameRu: name,
+    nameEn: name,
     status: row.is_active === false ? 'inactive' : 'active',
     createdAt: formatDate(row.created_at),
   }
@@ -507,9 +504,6 @@ export default function CategoriesPage() {
     try {
       const payload: Record<string, unknown> = {
         name,
-        name_uz: d.nameUz.trim(),
-        name_ru: d.nameRu.trim(),
-        name_en: d.nameEn.trim(),
         categories_id: d.parentId,
         status: d.status,
       }
