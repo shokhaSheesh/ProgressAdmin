@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
-import { CATEGORIES, type Product, type Status } from '../../data/productsStore'
+import { type Product, type Status } from '../../data/productsStore'
 import { callGateway, gatewayList, methods } from '../../api/gateway'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -132,6 +132,11 @@ type ProductListResponse = {
   total?: number
 }
 type ApiProduct = Product & { guid: string }
+type CategoryOption = { id: string; name: string }
+type CategoryListResponse = {
+  categories?: Array<{ guid: string; name?: string }>
+  data?: Array<{ guid: string; name?: string }>
+}
 
 function productNumericId(guid: string) {
   const numeric = guid.replace(/\D/g, '').slice(0, 12)
@@ -197,7 +202,7 @@ function StatusFilterDropdown({ value, onChange }: { value: StatusFilter; onChan
   )
 }
 
-function CategoryFilterDropdown({ value, onChange }: { value: CategoryFilter; onChange: (v: CategoryFilter) => void }) {
+function CategoryFilterDropdown({ value, options, onChange }: { value: CategoryFilter; options: CategoryOption[]; onChange: (v: CategoryFilter) => void }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const ref = useRef<HTMLDivElement>(null)
@@ -205,11 +210,12 @@ function CategoryFilterDropdown({ value, onChange }: { value: CategoryFilter; on
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setQ('') } }
     document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
   }, [])
-  const filtered = q ? CATEGORIES.filter(c => c.toLowerCase().includes(q.toLowerCase())) : CATEGORIES
+  const selected = options.find(option => option.id === value)
+  const filtered = q ? options.filter(c => c.name.toLowerCase().includes(q.toLowerCase())) : options
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setOpen(o => !o)} className={['flex items-center gap-2 h-9 px-4 rounded-xl text-[13px] font-semibold border-2 transition-all whitespace-nowrap', open || value !== 'all' ? 'border-primary text-primary bg-primary/5' : 'border-black/[0.08] text-foreground bg-card hover:border-black/20'].join(' ')}>
-        {value === 'all' ? 'All Categories' : value}
+        {value === 'all' ? 'All Categories' : selected?.name || 'Category'}
         <svg className={['w-4 h-4 transition-transform', open ? 'rotate-180' : ''].join(' ')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
       </button>
       {open && (
@@ -223,8 +229,8 @@ function CategoryFilterDropdown({ value, onChange }: { value: CategoryFilter; on
               All Categories
             </button>
             {filtered.map(cat => (
-              <button key={cat} onClick={() => { onChange(cat); setOpen(false); setQ('') }} className={['w-full text-left px-4 py-2.5 text-[13px] font-medium transition-colors', cat === value ? 'bg-primary/[0.08] text-primary font-semibold' : 'text-foreground hover:bg-[#F4F5F7]'].join(' ')}>
-                {cat}
+              <button key={cat.id} onClick={() => { onChange(cat.id); setOpen(false); setQ('') }} className={['w-full text-left px-4 py-2.5 text-[13px] font-medium transition-colors', cat.id === value ? 'bg-primary/[0.08] text-primary font-semibold' : 'text-foreground hover:bg-[#F4F5F7]'].join(' ')}>
+                {cat.name}
               </button>
             ))}
           </div>
@@ -239,6 +245,7 @@ function CategoryFilterDropdown({ value, onChange }: { value: CategoryFilter; on
 export default function ProductsPage() {
   const navigate = useNavigate()
   const [products, setProducts] = useState<ApiProduct[]>([])
+  const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -252,8 +259,27 @@ export default function ProductsPage() {
 
   useEffect(() => {
     let cancelled = false
+    gatewayList<CategoryListResponse>(methods.categories.list, {
+      page: 1,
+      limit: 500,
+      filter: {},
+      sort: { created_at: -1 },
+    }).then(response => {
+      if (cancelled) return
+      const rows = response.categories || response.data || []
+      setCategoryOptions(rows.map(row => ({ id: row.guid, name: row.name || row.guid })))
+    }).catch(() => {
+      if (!cancelled) setCategoryOptions([])
+    })
+
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
     const filter: Record<string, unknown> = {}
     if (statusFilter !== 'all') filter.status = statusFilter === 'active'
+    if (catFilter !== 'all') filter.categories_id = catFilter
 
     setLoading(true)
     setError('')
@@ -267,7 +293,7 @@ export default function ProductsPage() {
       if (cancelled) return
       const rows = response.products || response.data || []
       const mapped = rows.map(mapProduct)
-      setProducts(catFilter === 'all' ? mapped : mapped.filter(p => p.category === catFilter))
+      setProducts(mapped)
       setTotal(response.total ?? mapped.length)
     }).catch(err => {
       if (cancelled) return
@@ -321,7 +347,7 @@ export default function ProductsPage() {
               </button>
             )}
           </div>
-          <CategoryFilterDropdown value={catFilter} onChange={v => { setCatFilter(v); resetPage() }} />
+          <CategoryFilterDropdown value={catFilter} options={categoryOptions} onChange={v => { setCatFilter(v); resetPage() }} />
           <StatusFilterDropdown value={statusFilter} onChange={v => { setStatusFilter(v); resetPage() }} />
         </div>
 
