@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
-import { useProducts, deleteProduct, CATEGORIES, type Product, type Status } from '../../data/productsStore'
+import { CATEGORIES, type Product, type Status } from '../../data/productsStore'
+import { callGateway, gatewayList, methods } from '../../api/gateway'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -103,6 +104,63 @@ function PageSizeDropdown({ value, onChange }: { value: number; onChange: (n: nu
 
 type StatusFilter   = 'all' | Status
 type CategoryFilter = 'all' | string
+type ProductRow = {
+  guid: string
+  name?: string
+  sku?: string
+  description?: string
+  images?: string[]
+  is_active?: boolean
+  categories_id?: string
+  locations_id?: string
+  manufacturer_brands_id?: string
+  brands_id?: string
+  models_id?: string
+  category_name?: string
+  location_name?: string
+  manufacturer_brand_name?: string
+  brand_name?: string
+  model_name?: string
+  created_at?: string
+}
+
+type ProductListResponse = {
+  products?: ProductRow[]
+  data?: ProductRow[]
+  page?: number
+  limit?: number
+  total?: number
+}
+type ApiProduct = Product & { guid: string }
+
+function productNumericId(guid: string) {
+  const numeric = guid.replace(/\D/g, '').slice(0, 12)
+  return Number(numeric) || Date.now()
+}
+
+function mapProduct(row: ProductRow): ApiProduct {
+  return {
+    guid: row.guid,
+    id: productNumericId(row.guid),
+    name: row.name || '',
+    sku: row.sku || '',
+    category: row.category_name || row.categories_id || '',
+    brand: row.brand_name || row.brands_id || '',
+    manufacturerBrand: row.manufacturer_brand_name || row.manufacturer_brands_id || '',
+    model: row.model_name || row.models_id || '',
+    location: row.location_name || row.locations_id || '',
+    description: row.description || '',
+    specifications: [],
+    price: 0,
+    image: row.images?.[0] || '',
+    images: row.images || [],
+    status: row.is_active === false ? 'inactive' : 'active',
+    hasVariants: false,
+    attributes: [],
+    variants: [],
+    createdAt: row.created_at || '',
+  }
+}
 
 function StatusFilterDropdown({ value, onChange }: { value: StatusFilter; onChange: (v: StatusFilter) => void }) {
   const [open, setOpen] = useState(false)
@@ -180,23 +238,52 @@ function CategoryFilterDropdown({ value, onChange }: { value: CategoryFilter; on
 
 export default function ProductsPage() {
   const navigate = useNavigate()
-  const products = useProducts()
+  const [products, setProducts] = useState<ApiProduct[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  const [deleting, setDeleting] = useState<Product | null>(null)
+  const [deleting, setDeleting] = useState<ApiProduct | null>(null)
   const [page, setPage]         = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [search, setSearch]     = useState('')
   const [catFilter, setCatFilter]       = useState<CategoryFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
-  const filtered = products.filter(p => {
-    const q = search.trim().toLowerCase()
-    return (catFilter === 'all'    || p.category === catFilter) &&
-           (statusFilter === 'all' || p.status === statusFilter) &&
-           (!q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q))
-  })
-  const pageCount = Math.ceil(filtered.length / pageSize)
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+  useEffect(() => {
+    let cancelled = false
+    const filter: Record<string, unknown> = {}
+    if (statusFilter !== 'all') filter.status = statusFilter === 'active'
+
+    setLoading(true)
+    setError('')
+    gatewayList<ProductListResponse>(methods.products.list, {
+      page,
+      limit: pageSize,
+      filter,
+      sort: { created_at: -1 },
+      search: search.trim(),
+    }).then(response => {
+      if (cancelled) return
+      const rows = response.products || response.data || []
+      const mapped = rows.map(mapProduct)
+      setProducts(catFilter === 'all' ? mapped : mapped.filter(p => p.category === catFilter))
+      setTotal(response.total ?? mapped.length)
+    }).catch(err => {
+      if (cancelled) return
+      setError(err instanceof Error ? err.message : 'Failed to load products')
+      setProducts([])
+      setTotal(0)
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+
+    return () => { cancelled = true }
+  }, [page, pageSize, search, catFilter, statusFilter])
+
+  const filtered = products
+  const pageCount = Math.ceil(total / pageSize)
+  const paginated = products
 
   const resetPage = () => setPage(1)
 
@@ -253,7 +340,18 @@ export default function ProductsPage() {
               </tr>
             </thead>
             <tbody>
-              {paginated.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan={8} className="px-5 py-16 text-center">
+                  <p className="text-[13px] font-semibold text-muted-foreground">Loading products...</p>
+                </td></tr>
+              ) : error ? (
+                <tr><td colSpan={8} className="px-5 py-16 text-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <p className="text-[13px] font-semibold text-red-500">{error}</p>
+                    <button onClick={resetPage} className="text-[12px] font-semibold text-primary hover:underline">Retry</button>
+                  </div>
+                </td></tr>
+              ) : paginated.length === 0 ? (
                 <tr><td colSpan={8} className="px-5 py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <svg className="w-8 h-8 text-muted-foreground/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
@@ -323,7 +421,7 @@ export default function ProductsPage() {
         <div className="px-5 py-4 border-t border-black/[0.06] flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <span className="text-[12px] font-medium text-muted-foreground">
-              Showing {filtered.length === 0 ? 0 : Math.min((page - 1) * pageSize + 1, filtered.length)}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+              Showing {total === 0 ? 0 : Math.min((page - 1) * pageSize + 1, total)}–{Math.min(page * pageSize, total)} of {total}
             </span>
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-medium text-muted-foreground">Rows per page:</span>
@@ -348,7 +446,12 @@ export default function ProductsPage() {
         <DeleteModal
           name={deleting.name}
           onClose={() => setDeleting(null)}
-          onConfirm={() => { deleteProduct(deleting.id); setDeleting(null) }}
+          onConfirm={() => {
+            callGateway(methods.products.delete, { guid: deleting.guid }).finally(() => {
+              setDeleting(null)
+              resetPage()
+            })
+          }}
         />
       )}
     </div>

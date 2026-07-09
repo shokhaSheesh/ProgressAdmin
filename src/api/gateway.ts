@@ -11,6 +11,7 @@ export type GatewayListPayload = {
   limit?: number
   filter?: Record<string, unknown>
   sort?: Record<string, 1 | -1>
+  search?: string
 }
 
 export type GatewayResponse<T> = {
@@ -56,11 +57,12 @@ export async function callGateway<T>(method: string, objectData: Record<string, 
   })
 
   const json = await res.json().catch(() => null)
-  if (!res.ok || !json || json.status !== 'success') {
-    const message = json?.data?.message || json?.data?.error || json?.description || 'Request failed'
+  const payload = json?.data?.status ? json.data : json
+  if (!res.ok || !payload || payload.status !== 'success') {
+    const message = payload?.data?.message || payload?.data?.error || payload?.server_error || json?.description || 'Request failed'
     throw new Error(message)
   }
-  return json.data as T
+  return payload.data as T
 }
 
 export async function adminLogin(login: string, password: string) {
@@ -111,6 +113,7 @@ export function gatewayList<T>(method: string, payload: GatewayListPayload = {})
     limit: payload.limit ?? 100,
     filter: payload.filter ?? {},
     sort: payload.sort ?? { created_at: -1 },
+    search: payload.search,
   })
 }
 
