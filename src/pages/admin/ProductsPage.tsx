@@ -389,7 +389,7 @@ export default function ProductsPage() {
                 const sc  = statusConfig[p.status]
                 const col = avatarColors[filtered.indexOf(p) % avatarColors.length]
                 return (
-                  <tr key={p.id} onClick={() => navigate(`/admin/products/${p.id}/edit`)} className="border-b border-black/[0.04] hover:bg-[#F4F5F7]/70 transition-colors last:border-0 cursor-pointer">
+                  <tr key={p.guid} onClick={() => navigate(`/admin/products/${p.guid}/edit`)} className="border-b border-black/[0.04] hover:bg-[#F4F5F7]/70 transition-colors last:border-0 cursor-pointer">
                     <td className="px-5 py-3.5 text-[13px] font-medium text-muted-foreground">{(page - 1) * pageSize + i + 1}</td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
@@ -428,7 +428,7 @@ export default function ProductsPage() {
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-1 justify-end">
-                        <button title="Edit" onClick={e => { e.stopPropagation(); navigate(`/admin/products/${p.id}/edit`) }} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all">
+                        <button title="Edit" onClick={e => { e.stopPropagation(); navigate(`/admin/products/${p.guid}/edit`) }} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-[#F4F5F7] hover:text-foreground transition-all">
                           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z" /></svg>
                         </button>
                         <button title="Delete" onClick={e => { e.stopPropagation(); setDeleting(p) }} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-red-50 hover:text-red-500 transition-all">

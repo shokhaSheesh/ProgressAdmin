@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   generateVariants, hasValidVariants,
-  getProduct, DEFAULT_VARIANT_KEY,
+  DEFAULT_VARIANT_KEY,
   type Status, type AttrDef, type Variant, type ProductInput, type VariantBase, type Specification,
 } from '../../data/productsStore'
 import { callGateway, gatewayList, methods } from '../../api/gateway'
@@ -27,6 +27,21 @@ type ApiListResponse = {
   manufacturer_brands?: Array<{ guid: string; name?: string }>
   brands?: Array<{ guid: string; name?: string }>
   models?: Array<{ guid: string; name?: string }>
+}
+type ProductDetailResponse = {
+  product?: {
+    guid?: string
+    name?: string
+    sku?: string
+    categories_id?: string
+    locations_id?: string
+    manufacturer_brands_id?: string
+    brands_id?: string
+    models_id?: string
+    description?: string
+    images?: string[]
+    is_active?: boolean
+  }
 }
 
 const emptyForm: FormData = {
@@ -189,9 +204,8 @@ const variantCols = [
 export default function ProductFormPage() {
   const navigate = useNavigate()
   const { id } = useParams()
-  const editId = id ? Number(id) : null
-  const isEdit = editId !== null
-  const existing = useMemo(() => (editId ? getProduct(editId) : undefined), [editId])
+  const productGuid = id || ''
+  const isEdit = Boolean(productGuid)
 
   const [step, setStep] = useState<Step>(1)
   const [attempted, setAttempted] = useState(false)
@@ -206,31 +220,42 @@ export default function ProductFormPage() {
   const attrIdRef = useRef(Date.now())
   const imgInputRef = useRef<HTMLInputElement>(null)
 
-  const [form, setForm] = useState<FormData>(() => {
-    if (!existing) return emptyForm
-    return {
-      name: existing.name, sku: existing.sku,
-      category: existing.category, brand: existing.brand,
-      manufacturerBrand: existing.manufacturerBrand ?? '',
-      model: existing.model,
-      location: existing.location, description: existing.description,
-      specifications: existing.specifications ?? [],
-      images: existing.images.length ? existing.images : (existing.image ? [existing.image] : []),
-      status: existing.status, attributes: existing.attributes,
-      variants: existing.variants.length
-        ? existing.variants
-        : generateVariants([], variantBaseFrom(existing), []),
-    }
-  })
+  const [form, setForm] = useState<FormData>(emptyForm)
 
-  function variantBaseFrom(src: { sku: string; brand: string; price?: number }): VariantBase {
-    return { sku: src.sku, brandName: src.brand, price: src.price != null ? String(src.price) : '' }
-  }
   const base = (): VariantBase => ({ sku: form.sku, brandName: form.brand, price: '' })
 
   useEffect(() => {
-    if (isEdit && !existing) navigate('/admin/products', { replace: true })
-  }, [isEdit, existing, navigate])
+    if (!isEdit) return
+    let cancelled = false
+    callGateway<ProductDetailResponse>(methods.products.get, { guid: productGuid })
+      .then(response => {
+        if (cancelled) return
+        const product = response.product
+        if (!product?.guid) {
+          navigate('/admin/products', { replace: true })
+          return
+        }
+        setForm({
+          name: product.name || '',
+          sku: product.sku || '',
+          category: product.categories_id || '',
+          brand: product.brands_id || '',
+          manufacturerBrand: product.manufacturer_brands_id || '',
+          model: product.models_id || '',
+          location: product.locations_id || '',
+          description: product.description || '',
+          specifications: [],
+          images: product.images || [],
+          status: product.is_active === false ? 'inactive' : 'active',
+          attributes: [],
+          variants: [],
+        })
+      })
+      .catch(() => {
+        if (!cancelled) navigate('/admin/products', { replace: true })
+      })
+    return () => { cancelled = true }
+  }, [isEdit, productGuid, navigate])
 
   useEffect(() => {
     let cancelled = false
@@ -378,7 +403,7 @@ export default function ProductFormPage() {
 
     setSaving(true)
     try {
-      await callGateway(isEdit ? methods.products.update : methods.products.create, isEdit && id ? { ...payload, guid: id } : payload)
+      await callGateway(isEdit ? methods.products.update : methods.products.create, isEdit && productGuid ? { ...payload, guid: productGuid } : payload)
       navigate('/admin/products')
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Failed to save product')
