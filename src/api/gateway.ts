@@ -45,7 +45,6 @@ export async function callGateway<T>(method: string, objectData: Record<string, 
     method,
     object_data: objectData,
   }
-  if (token) data.bearer_token = token
 
   const res = await fetch(functionUrl(), {
     method: 'POST',
