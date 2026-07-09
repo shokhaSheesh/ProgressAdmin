@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { adminLogin } from '../api/gateway'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -16,9 +17,14 @@ export default function Login() {
       return
     }
     setLoading(true)
-    await new Promise((r) => setTimeout(r, 800))
-    setLoading(false)
-    navigate('/admin')
+    try {
+      await adminLogin(username.trim(), password)
+      navigate('/admin')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to sign in.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

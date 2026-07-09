@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
+import { clearAccessToken } from '../api/gateway'
 
 // ─── Nav tree ───────────────────────────────────────────────────────────────
 
@@ -356,7 +357,10 @@ export default function AdminSidebar({ collapsed }: AdminSidebarProps) {
       {/* ── Footer — Sign out ── */}
       <div className="border-t border-white/[0.1] p-2">
         <button
-          onClick={() => navigate('/login')}
+          onClick={() => {
+            clearAccessToken()
+            navigate('/login')
+          }}
           className={[
             'flex items-center gap-3 w-full rounded-xl py-2.5 transition-all',
             'text-white/50 hover:bg-white/[0.08] hover:text-red-300',

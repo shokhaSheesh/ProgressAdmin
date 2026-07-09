@@ -29,6 +29,11 @@ import NotificationFormPage from './pages/admin/NotificationFormPage'
 import InventoryQrPrintPage from './pages/admin/InventoryQrPrintPage'
 import BannersPage from './pages/admin/BannersPage'
 import BannerFormPage from './pages/admin/BannerFormPage'
+import { isAuthenticated } from './api/gateway'
+
+function ProtectedAdmin() {
+  return isAuthenticated() ? <AdminLayout /> : <Navigate to="/login" replace />
+}
 
 export default function App() {
   return (
@@ -38,7 +43,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
 
         {/* Super Admin panel */}
-        <Route path="/admin" element={<AdminLayout />}>
+        <Route path="/admin" element={<ProtectedAdmin />}>
           <Route index element={<DashboardPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="admin-users" element={<AdminUsersPage />} />
