@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { callGateway, methods } from '../../api/gateway'
 import { formatDate, imageFromRow, loadCrudRows, maybeUploadImage, rowStatus, saveCrudRow } from '../../api/adminCrud'
@@ -280,7 +279,6 @@ function PageSizeDropdown({ value, onChange }: { value: number; onChange: (n: nu
 type ModalState = { kind: 'edit'; brand: Brand } | { kind: 'delete'; brand: Brand } | { kind: 'create' } | null
 
 export default function BrandsPage() {
-  const navigate = useNavigate()
   const [brands, setBrands] = useState<Brand[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -423,8 +421,7 @@ export default function BrandsPage() {
               const sc = statusConfig[brand.status]
               return (
                 <tr key={brand.id}
-                  onClick={() => navigate(`/admin/brands/${brand.id}`)}
-                  className="border-b border-black/[0.04] hover:bg-[#F4F5F7]/70 transition-colors last:border-0 cursor-pointer">
+                  className="border-b border-black/[0.04] hover:bg-[#F4F5F7]/70 transition-colors last:border-0">
                   <td className="px-5 py-3.5 text-[13px] font-medium text-muted-foreground">{(page - 1) * pageSize + i + 1}</td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
