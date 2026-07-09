@@ -6,6 +6,7 @@ import {
   type Status, type AttrDef, type Variant, type ProductInput, type VariantBase, type Specification,
 } from '../../data/productsStore'
 import { callGateway, gatewayList, methods } from '../../api/gateway'
+import { uploadProductImage } from '../../api/uploadImage'
 
 // ─── Form state ────────────────────────────────────────────────────────────────
 
@@ -195,6 +196,7 @@ export default function ProductFormPage() {
   const [step, setStep] = useState<Step>(1)
   const [attempted, setAttempted] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [uploadingImages, setUploadingImages] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [categories, setCategories] = useState<SelectOption[]>([])
   const [locations, setLocations] = useState<SelectOption[]>([])
@@ -284,9 +286,20 @@ export default function ProductFormPage() {
     setForm(prev => ({ ...prev, variants: prev.variants.map(v => v.key === key ? { ...v, ...p } : v) }))
 
   // ── Images ──
-  const addImages = (files: FileList) => {
-    const urls = Array.from(files).slice(0, 10 - form.images.length).map(f => URL.createObjectURL(f))
-    patch({ images: [...form.images, ...urls] })
+  const addImages = async (files: FileList) => {
+    const selected = Array.from(files).slice(0, 10 - form.images.length)
+    if (selected.length === 0) return
+
+    setUploadingImages(true)
+    setSaveError('')
+    try {
+      const urls = await Promise.all(selected.map(file => uploadProductImage(file)))
+      patch({ images: [...form.images, ...urls] })
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Image upload failed')
+    } finally {
+      setUploadingImages(false)
+    }
   }
   const removeImage = (idx: number) => patch({ images: form.images.filter((_, i) => i !== idx) })
 
@@ -299,6 +312,10 @@ export default function ProductFormPage() {
   const handleSave = async () => {
     setAttempted(true)
     setSaveError('')
+    if (uploadingImages) {
+      setSaveError('Wait for image upload to finish')
+      return
+    }
     if (!basicValid) { setStep(1); return }
 
     const input: ProductInput = {
@@ -549,14 +566,14 @@ export default function ProductFormPage() {
                 <div className="flex flex-col gap-1.5">
                   <label className={labelCls}>Product Images <span className="text-red-500">*</span></label>
                   <input ref={imgInputRef} type="file" accept="image/*" multiple className="hidden"
-                    onChange={e => { if (e.target.files) addImages(e.target.files); e.target.value = '' }} />
+                    onChange={e => { if (e.target.files) void addImages(e.target.files); e.target.value = '' }} />
 
                   {form.images.length === 0 ? (
-                    <div onClick={() => imgInputRef.current?.click()}
+                    <div onClick={() => { if (!uploadingImages) imgInputRef.current?.click() }}
                       className={['rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 py-14 cursor-pointer transition-all',
                         invalid(form.images.length === 0) ? 'border-red-300 bg-red-50/40' : 'border-black/[0.12] hover:border-primary/40 bg-[#FAFBFC]'].join(' ')}>
                       <svg className="w-7 h-7 text-muted-foreground/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                      <p className="text-[14px] font-bold text-foreground">Add images</p>
+                      <p className="text-[14px] font-bold text-foreground">{uploadingImages ? 'Uploading images...' : 'Add images'}</p>
                       <p className="text-[12px] font-medium text-muted-foreground">0/10 · PNG, JPG, GIF up to 5MB</p>
                     </div>
                   ) : (
@@ -572,10 +589,10 @@ export default function ProductFormPage() {
                         </div>
                       ))}
                       {form.images.length < 10 && (
-                        <button type="button" onClick={() => imgInputRef.current?.click()}
+                        <button type="button" onClick={() => imgInputRef.current?.click()} disabled={uploadingImages}
                           className="w-[104px] h-[104px] rounded-xl border-2 border-dashed border-black/[0.12] hover:border-primary/40 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-primary transition-all bg-[#FAFBFC]">
                           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                          <span className="text-[11px] font-semibold">{form.images.length}/10</span>
+                          <span className="text-[11px] font-semibold">{uploadingImages ? 'Uploading' : `${form.images.length}/10`}</span>
                         </button>
                       )}
                     </div>
@@ -703,10 +720,10 @@ export default function ProductFormPage() {
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
             </button>
           ) : (
-            <button onClick={handleSave} disabled={saving}
+            <button onClick={handleSave} disabled={saving || uploadingImages}
               className="rounded-xl px-6 py-2.5 text-[13px] font-semibold bg-primary text-white hover:bg-primary-hover active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ boxShadow: '0 2px 8px rgba(37,99,235,0.3)' }}>
-              {saving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Product')}
+              {uploadingImages ? 'Uploading...' : saving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Product')}
             </button>
           )}
         </div>
