@@ -1,5 +1,8 @@
 const DEFAULT_FUNCTION_URL =
   'https://api.admin.u-code.io/v2/invoke_function/progress-gateway?project-id=fccb33c6-8ff4-470c-85a8-3216483624b5'
+const AUTH_LOGIN_URL = 'https://api.auth.u-code.io/v2/login'
+const PROJECT_ID = '9384c816-bc2d-441f-a8b0-056ee3d4fd06'
+const ADMIN_CLIENT_TYPE_ID = '278ced59-5cdd-4d32-b3f7-f2e8bc83f924'
 
 const TOKEN_KEY = 'progress-admin-access-token'
 
@@ -61,6 +64,36 @@ export async function callGateway<T>(method: string, objectData: Record<string, 
 }
 
 export async function adminLogin(login: string, password: string) {
+  const res = await fetch(AUTH_LOGIN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      login,
+      username: login,
+      password,
+      project_id: PROJECT_ID,
+      client_type: ADMIN_CLIENT_TYPE_ID,
+    }),
+  })
+
+  const data = (await res.json().catch(() => null)) as {
+    status?: string
+    description?: string
+    data?: { token?: { access_token?: string } }
+    token?: { access_token?: string }
+  } | null
+
+  if (!res.ok || !data || (data.status && data.status !== 'CREATED' && data.status !== 'OK' && data.status !== 'done')) {
+    throw new Error(data?.description || 'Login failed')
+  }
+
+  const token = data.data?.token?.access_token || data.token?.access_token
+  if (!token) throw new Error('Login response did not include access token')
+  setAccessToken(token)
+  return data
+}
+
+export async function adminLoginViaGateway(login: string, password: string) {
   const data = await callGateway<{
     data?: { token?: { access_token?: string } }
     token?: { access_token?: string }
