@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  CATEGORIES, BRANDS, MANUFACTURER_BRANDS, MODELS, LOCATIONS,
   generateVariants, hasValidVariants,
-  getProduct, createProduct, updateProduct, DEFAULT_VARIANT_KEY,
+  getProduct, DEFAULT_VARIANT_KEY,
   type Status, type AttrDef, type Variant, type ProductInput, type VariantBase, type Specification,
 } from '../../data/productsStore'
+import { callGateway, gatewayList, methods } from '../../api/gateway'
 
 // ─── Form state ────────────────────────────────────────────────────────────────
 
@@ -16,6 +16,16 @@ interface FormData {
   specifications: Specification[]
   images: string[]; status: Status
   attributes: AttrDef[]; variants: Variant[]
+}
+
+type SelectOption = { value: string; label: string }
+type ApiListResponse = {
+  data?: Array<{ guid: string; name?: string }>
+  categories?: Array<{ guid: string; name?: string }>
+  locations?: Array<{ guid: string; name?: string }>
+  manufacturer_brands?: Array<{ guid: string; name?: string }>
+  brands?: Array<{ guid: string; name?: string }>
+  models?: Array<{ guid: string; name?: string }>
 }
 
 const emptyForm: FormData = {
@@ -31,6 +41,14 @@ type Step = 1 | 2
 
 const labelCls = 'text-[13px] font-bold text-foreground'
 const inputCls = 'w-full bg-card text-foreground rounded-xl px-4 py-3 text-[13px] font-medium border border-black/[0.1] focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all placeholder:text-muted-foreground/60'
+
+function listRows(response: ApiListResponse, key: keyof ApiListResponse) {
+  return response[key] || response.data || []
+}
+
+function toOptions(rows: Array<{ guid: string; name?: string }>): SelectOption[] {
+  return rows.map(row => ({ value: row.guid, label: row.name || row.guid }))
+}
 
 // ─── Rich text editor (lightweight) ─────────────────────────────────────────────
 
@@ -97,7 +115,7 @@ function RichText({ value, onChange, placeholder }: { value: string; onChange: (
 
 function SearchableDropdown({
   value, options, placeholder, onChange, allowCustom = false,
-}: { value: string; options: string[]; placeholder: string; onChange: (v: string) => void; allowCustom?: boolean }) {
+}: { value: string; options: SelectOption[]; placeholder: string; onChange: (v: string) => void; allowCustom?: boolean }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const ref = useRef<HTMLDivElement>(null)
@@ -108,13 +126,14 @@ function SearchableDropdown({
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
-  const filtered = q ? options.filter(o => o.toLowerCase().includes(q.toLowerCase())) : options
+  const selected = options.find(o => o.value === value)
+  const filtered = q ? options.filter(o => o.label.toLowerCase().includes(q.toLowerCase())) : options
 
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => { setOpen(o => !o); setQ('') }}
         className={['w-full flex items-center justify-between bg-card rounded-xl px-4 py-3 text-[13px] font-medium border transition-all', open ? 'border-primary ring-2 ring-primary/15' : 'border-black/[0.1]'].join(' ')}>
-        <span className={value ? 'text-foreground font-medium' : 'text-muted-foreground/60'}>{value || placeholder}</span>
+        <span className={value ? 'text-foreground font-medium' : 'text-muted-foreground/60'}>{selected?.label || value || placeholder}</span>
         <svg className={['w-4 h-4 text-muted-foreground transition-transform shrink-0', open ? 'rotate-180' : ''].join(' ')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
       </button>
       {open && (
@@ -128,9 +147,9 @@ function SearchableDropdown({
             {filtered.length === 0
               ? <p className="px-4 py-3 text-[12px] text-muted-foreground">{allowCustom ? 'Press Enter to add' : 'No results'}</p>
               : filtered.map(opt => (
-                <button key={opt} type="button" onClick={() => { onChange(opt); setOpen(false); setQ('') }}
-                  className={['w-full text-left px-4 py-2.5 text-[13px] transition-colors', opt === value ? 'bg-primary/[0.08] text-primary font-semibold' : 'text-foreground hover:bg-[#F4F5F7] font-medium'].join(' ')}>
-                  {opt}
+                <button key={opt.value} type="button" onClick={() => { onChange(opt.value); setOpen(false); setQ('') }}
+                  className={['w-full text-left px-4 py-2.5 text-[13px] transition-colors', opt.value === value ? 'bg-primary/[0.08] text-primary font-semibold' : 'text-foreground hover:bg-[#F4F5F7] font-medium'].join(' ')}>
+                  {opt.label}
                 </button>
               ))}
           </div>
@@ -175,6 +194,13 @@ export default function ProductFormPage() {
 
   const [step, setStep] = useState<Step>(1)
   const [attempted, setAttempted] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [categories, setCategories] = useState<SelectOption[]>([])
+  const [locations, setLocations] = useState<SelectOption[]>([])
+  const [manufacturerBrands, setManufacturerBrands] = useState<SelectOption[]>([])
+  const [brands, setBrands] = useState<SelectOption[]>([])
+  const [models, setModels] = useState<SelectOption[]>([])
   const attrIdRef = useRef(Date.now())
   const imgInputRef = useRef<HTMLInputElement>(null)
 
@@ -203,6 +229,28 @@ export default function ProductFormPage() {
   useEffect(() => {
     if (isEdit && !existing) navigate('/admin/products', { replace: true })
   }, [isEdit, existing, navigate])
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([
+      gatewayList<ApiListResponse>(methods.categories.list, { page: 1, limit: 500, sort: { created_at: -1 } }),
+      gatewayList<ApiListResponse>(methods.locations.list, { page: 1, limit: 500, sort: { created_at: -1 } }),
+      gatewayList<ApiListResponse>(methods.manufacturerBrands.list, { page: 1, limit: 500, sort: { created_at: -1 } }),
+      gatewayList<ApiListResponse>(methods.brands.list, { page: 1, limit: 500, sort: { created_at: -1 } }),
+      gatewayList<ApiListResponse>(methods.models.list, { page: 1, limit: 500, sort: { created_at: -1 } }),
+    ]).then(([catRes, locationRes, manufacturerRes, brandRes, modelRes]) => {
+      if (cancelled) return
+      setCategories(toOptions(listRows(catRes, 'categories')))
+      setLocations(toOptions(listRows(locationRes, 'locations')))
+      setManufacturerBrands(toOptions(listRows(manufacturerRes, 'manufacturer_brands')))
+      setBrands(toOptions(listRows(brandRes, 'brands')))
+      setModels(toOptions(listRows(modelRes, 'models')))
+    }).catch(() => {
+      if (!cancelled) setSaveError('Failed to load product relation lists')
+    })
+
+    return () => { cancelled = true }
+  }, [])
 
   // Ensure a default variant exists for a no-option product
   useEffect(() => {
@@ -248,8 +296,9 @@ export default function ProductFormPage() {
 
   const goNext = () => { setAttempted(true); if (basicValid) { setAttempted(false); setStep(2) } }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setAttempted(true)
+    setSaveError('')
     if (!basicValid) { setStep(1); return }
 
     const input: ProductInput = {
@@ -273,9 +322,52 @@ export default function ProductFormPage() {
       }
     }
 
-    if (isEdit && editId !== null) updateProduct(editId, input)
-    else createProduct(input)
-    navigate('/admin/products')
+    const productVariants = hasVariants
+      ? form.attributes
+          .filter(attr => attr.name.trim() && attr.values.length > 0)
+          .map(attr => ({
+            name: attr.name.trim(),
+            product_variant_options: attr.values.map(value => {
+              const matching = form.variants.find(variant => variant.selected && variant.attributes[attr.name] === value)
+              return {
+                name: value,
+                image: matching?.image || '',
+                sku: matching?.sku || '',
+                price: matching?.price ? [matching.price] : [],
+                quantity: Number(matching?.quantity || 0),
+                is_enabled: Boolean(matching?.selected),
+              }
+            }),
+          }))
+      : []
+
+    const payload: Record<string, unknown> = {
+      name: input.name,
+      sku: input.sku,
+      categories_id: form.category,
+      locations_id: form.location,
+      description: input.description,
+      images: input.images,
+      status: input.status,
+      product_specifications: input.specifications.map(spec => ({
+        attribute_name: spec.key,
+        value: spec.value,
+      })),
+      product_variants: productVariants,
+    }
+    if (form.manufacturerBrand) payload.manufacturer_brands_id = form.manufacturerBrand
+    if (form.brand) payload.brands_id = form.brand
+    if (form.model) payload.models_id = form.model
+
+    setSaving(true)
+    try {
+      await callGateway(isEdit ? methods.products.update : methods.products.create, isEdit && id ? { ...payload, guid: id } : payload)
+      navigate('/admin/products')
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save product')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const selectedCount = form.variants.filter(v => v.selected).length
@@ -357,7 +449,7 @@ export default function ProductFormPage() {
                 {/* Category */}
                 <div className="flex flex-col gap-1.5">
                   <label className={labelCls}>Category <span className="text-red-500">*</span></label>
-                  <SearchableDropdown value={form.category} options={CATEGORIES} placeholder="Select category" onChange={v => patch({ category: v })} />
+                  <SearchableDropdown value={form.category} options={categories} placeholder="Select category" onChange={v => patch({ category: v })} />
                   {invalid(!form.category.trim()) && <span className="text-[11px] font-medium text-red-500">Category is required</span>}
                 </div>
 
@@ -365,7 +457,7 @@ export default function ProductFormPage() {
                 <div className="grid grid-cols-2 gap-5">
                   <div className="flex flex-col gap-1.5">
                     <label className={labelCls}>Location <span className="text-red-500">*</span></label>
-                    <SearchableDropdown value={form.location} options={LOCATIONS} placeholder="Select location" onChange={v => patch({ location: v })} />
+                    <SearchableDropdown value={form.location} options={locations} placeholder="Select location" onChange={v => patch({ location: v })} />
                     {invalid(!form.location.trim()) && <span className="text-[11px] font-medium text-red-500">Location is required</span>}
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -378,18 +470,18 @@ export default function ProductFormPage() {
                 <div className="grid grid-cols-2 gap-5">
                   <div className="flex flex-col gap-1.5">
                     <label className={labelCls}>Manufacturer Brand</label>
-                    <SearchableDropdown value={form.manufacturerBrand} options={MANUFACTURER_BRANDS} placeholder="Select manufacturer" onChange={v => patch({ manufacturerBrand: v })} allowCustom />
+                    <SearchableDropdown value={form.manufacturerBrand} options={manufacturerBrands} placeholder="Select manufacturer" onChange={v => patch({ manufacturerBrand: v })} />
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <label className={labelCls}>Brand</label>
-                    <SearchableDropdown value={form.brand} options={BRANDS} placeholder="Select a brand" onChange={v => patch({ brand: v })} allowCustom />
+                    <SearchableDropdown value={form.brand} options={brands} placeholder="Select a brand" onChange={v => patch({ brand: v })} />
                   </div>
                 </div>
 
                 {/* Model */}
                 <div className="flex flex-col gap-1.5">
                   <label className={labelCls}>Model</label>
-                  <SearchableDropdown value={form.model} options={MODELS} placeholder="Select or type a model" onChange={v => patch({ model: v })} allowCustom />
+                  <SearchableDropdown value={form.model} options={models} placeholder="Select model" onChange={v => patch({ model: v })} />
                 </div>
 
                 {/* Description */}
@@ -588,10 +680,13 @@ export default function ProductFormPage() {
 
       {/* ── Footer ── */}
       <div className="shrink-0 border-t border-black/[0.06] bg-card px-6 py-4 flex items-center justify-between">
-        <button onClick={() => navigate('/admin/products')}
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/admin/products')}
           className="rounded-xl px-5 py-2.5 text-[13px] font-semibold border-2 border-black/[0.08] text-foreground hover:bg-[#F4F5F7] transition-colors">
-          Cancel
-        </button>
+            Cancel
+          </button>
+          {saveError && <span className="text-[12px] font-semibold text-red-500">{saveError}</span>}
+        </div>
         <div className="flex items-center gap-2.5">
           {step === 2 && (
             <button onClick={() => setStep(1)}
@@ -608,10 +703,10 @@ export default function ProductFormPage() {
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
             </button>
           ) : (
-            <button onClick={handleSave}
-              className="rounded-xl px-6 py-2.5 text-[13px] font-semibold bg-primary text-white hover:bg-primary-hover active:scale-[0.98] transition-all"
+            <button onClick={handleSave} disabled={saving}
+              className="rounded-xl px-6 py-2.5 text-[13px] font-semibold bg-primary text-white hover:bg-primary-hover active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ boxShadow: '0 2px 8px rgba(37,99,235,0.3)' }}>
-              {isEdit ? 'Save Changes' : 'Create Product'}
+              {saving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Product')}
             </button>
           )}
         </div>
