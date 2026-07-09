@@ -41,7 +41,35 @@ type ProductDetailResponse = {
     description?: string
     images?: string[]
     is_active?: boolean
+    product_specifications?: Array<{ guid?: string; attribute_name?: string; value?: string }>
+    product_variants?: Array<{
+      guid?: string
+      name?: string
+      product_variant_options?: Array<{
+        guid?: string
+        name?: string
+        image?: string
+        sku?: string
+        price?: string[] | string
+        quantity?: number | string
+        is_enabled?: boolean
+      }>
+    }>
   }
+  product_specifications?: Array<{ guid?: string; attribute_name?: string; value?: string }>
+  product_variants?: Array<{
+    guid?: string
+    name?: string
+    product_variant_options?: Array<{
+      guid?: string
+      name?: string
+      image?: string
+      sku?: string
+      price?: string[] | string
+      quantity?: number | string
+      is_enabled?: boolean
+    }>
+  }>
 }
 
 const emptyForm: FormData = {
@@ -66,6 +94,40 @@ function toOptions(rows: Array<{ guid: string; name?: string }>): SelectOption[]
   return rows.map(row => ({ value: row.guid, label: row.name || row.guid }))
 }
 
+function firstPrice(value: string[] | string | undefined) {
+  if (Array.isArray(value)) return value[0] || ''
+  return value || ''
+}
+
+function productVariantsToForm(variants: NonNullable<ProductDetailResponse['product_variants']>) {
+  const attributes: AttrDef[] = variants.map(variant => ({
+    id: variant.guid || String(Date.now()),
+    name: variant.name || '',
+    values: (variant.product_variant_options || []).map(option => option.name || '').filter(Boolean),
+  })).filter(attribute => attribute.name && attribute.values.length > 0)
+
+  const formVariants: Variant[] = []
+  for (const variant of variants) {
+    const attributeName = variant.name || ''
+    for (const option of variant.product_variant_options || []) {
+      const optionName = option.name || ''
+      if (!attributeName || !optionName) continue
+      formVariants.push({
+        key: `${attributeName}:${optionName}`,
+        attributes: { [attributeName]: optionName },
+        sku: option.sku || '',
+        brandName: '',
+        price: firstPrice(option.price),
+        quantity: String(option.quantity ?? ''),
+        image: option.image || '',
+        selected: option.is_enabled !== false,
+      })
+    }
+  }
+
+  return { attributes, variants: formVariants }
+}
+
 // ─── Rich text editor (lightweight) ─────────────────────────────────────────────
 
 function RichText({ value, onChange, placeholder }: { value: string; onChange: (html: string) => void; placeholder: string }) {
@@ -74,8 +136,7 @@ function RichText({ value, onChange, placeholder }: { value: string; onChange: (
 
   useEffect(() => {
     if (ref.current && ref.current.innerHTML !== value) ref.current.innerHTML = value
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [value])
 
   const exec = (cmd: string, arg?: string) => {
     ref.current?.focus()
@@ -235,6 +296,9 @@ export default function ProductFormPage() {
           navigate('/admin/products', { replace: true })
           return
         }
+        const rawSpecifications = product.product_specifications || response.product_specifications || []
+        const rawVariants = product.product_variants || response.product_variants || []
+        const mappedVariants = productVariantsToForm(rawVariants)
         setForm({
           name: product.name || '',
           sku: product.sku || '',
@@ -244,11 +308,14 @@ export default function ProductFormPage() {
           model: product.models_id || '',
           location: product.locations_id || '',
           description: product.description || '',
-          specifications: [],
+          specifications: rawSpecifications.map(spec => ({
+            key: spec.attribute_name || '',
+            value: spec.value || '',
+          })),
           images: product.images || [],
           status: product.is_active === false ? 'inactive' : 'active',
-          attributes: [],
-          variants: [],
+          attributes: mappedVariants.attributes,
+          variants: mappedVariants.variants,
         })
       })
       .catch(() => {
