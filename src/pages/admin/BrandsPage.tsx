@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
-import {
-  useBrands, createBrand, updateBrand, deleteBrand,
-} from '../../data/brandsStore'
-import type { Brand, BrandStatus, BrandInput } from '../../data/brandsStore'
+import { callGateway, methods } from '../../api/gateway'
+import { formatDate, imageFromRow, loadCrudRows, maybeUploadImage, rowStatus, saveCrudRow } from '../../api/adminCrud'
+import type { ApiRow } from '../../api/adminCrud'
+
+type BrandStatus = 'active' | 'inactive'
+interface Brand { id: string; name: string; logo: string; status: BrandStatus; createdAt: string; models: unknown[] }
+interface BrandInput { name: string; logo: string; status: BrandStatus }
 
 const statusConfig: Record<BrandStatus, { label: string; bg: string; text: string }> = {
   active:   { label: 'Active',   bg: 'bg-emerald-50', text: 'text-emerald-600' },
@@ -27,6 +30,17 @@ export function BrandAvatar({ logo, name, size = 36 }: { logo: string; name: str
       {initials}
     </div>
   )
+}
+
+function mapBrand(row: ApiRow, modelCounts: Record<string, number> = {}): Brand {
+  return {
+    id: row.guid,
+    name: row.name || '',
+    logo: imageFromRow(row),
+    status: rowStatus(row),
+    createdAt: formatDate(row.created_at),
+    models: Array.from({ length: modelCounts[row.guid] || 0 }),
+  }
 }
 
 function useEscClose(onClose: () => void) {
@@ -122,7 +136,7 @@ function LogoUpload({ logo, name, onChange }: { logo: string; name: string; onCh
   )
 }
 
-function FormModal({ brand, onClose, onSave }: { brand: Brand | null; onClose: () => void; onSave: (d: BrandInput) => void }) {
+function FormModal({ brand, busy, onClose, onSave }: { brand: Brand | null; busy?: boolean; onClose: () => void; onSave: (d: BrandInput) => void }) {
   const isEdit = brand !== null
   const [form, setForm] = useState<BrandInput>({
     name: brand?.name ?? '',
@@ -181,9 +195,9 @@ function FormModal({ brand, onClose, onSave }: { brand: Brand | null; onClose: (
             </div>
           </div>
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 rounded-xl py-3 text-[13px] font-semibold border-2 border-black/[0.08] text-foreground hover:bg-[#F4F5F7] transition-colors">Cancel</button>
-            <button type="submit" className="flex-1 rounded-xl py-3 text-[13px] font-semibold bg-primary text-white hover:bg-primary-hover active:scale-[0.98] transition-all" style={{ boxShadow: '0 2px 8px rgba(37,99,235,0.3)' }}>
-              {isEdit ? 'Save Changes' : 'Add Brand'}
+            <button type="button" onClick={onClose} disabled={busy} className="flex-1 rounded-xl py-3 text-[13px] font-semibold border-2 border-black/[0.08] text-foreground hover:bg-[#F4F5F7] transition-colors disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={busy} className="flex-1 rounded-xl py-3 text-[13px] font-semibold bg-primary text-white hover:bg-primary-hover active:scale-[0.98] transition-all disabled:opacity-50" style={{ boxShadow: '0 2px 8px rgba(37,99,235,0.3)' }}>
+              {busy ? 'Saving...' : isEdit ? 'Save Changes' : 'Add Brand'}
             </button>
           </div>
         </form>
@@ -267,19 +281,45 @@ type ModalState = { kind: 'edit'; brand: Brand } | { kind: 'delete'; brand: Bran
 
 export default function BrandsPage() {
   const navigate = useNavigate()
-  const brands    = useBrands()
+  const [brands, setBrands] = useState<Brand[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
   const [modal, setModal]   = useState<ModalState>(null)
   const [page, setPage]     = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
-  const filtered = brands.filter(b => {
-    const q = search.trim().toLowerCase()
-    return (statusFilter === 'all' || b.status === statusFilter) && (!q || b.name.toLowerCase().includes(q))
-  })
-  const pageCount = Math.ceil(filtered.length / pageSize)
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const pageCount = Math.ceil(total / pageSize)
+  const paginated = brands
+
+  async function loadBrands() {
+    setLoading(true)
+    setError('')
+    try {
+      const filter: Record<string, unknown> = {}
+      if (statusFilter !== 'all') filter.status = statusFilter
+      const [brandRes, modelRes] = await Promise.all([
+        loadCrudRows<ApiRow>(methods.brands.list, 'brands', page, pageSize, filter, search),
+        loadCrudRows<ApiRow>(methods.models.list, 'models', 1, 500, {}, ''),
+      ])
+      const counts = modelRes.rows.reduce<Record<string, number>>((acc, row) => {
+        const brandId = String(row.brands_id || '')
+        if (brandId) acc[brandId] = (acc[brandId] || 0) + 1
+        return acc
+      }, {})
+      setBrands(brandRes.rows.map(row => mapBrand(row, counts)))
+      setTotal(brandRes.total)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load brands')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { void loadBrands() }, [page, pageSize, search, statusFilter])
 
   const handleSearch = (v: string) => { setSearch(v); setPage(1) }
   const handleFilter = (v: StatusFilter) => { setStatusFilter(v); setPage(1) }
@@ -289,19 +329,37 @@ export default function BrandsPage() {
   const pEnd   = Math.min(pageCount, page + delta)
   const range  = Array.from({ length: pEnd - pStart + 1 }, (_, i) => pStart + i)
 
-  const handleSave = (d: BrandInput) => {
-    if (modal?.kind === 'edit') {
-      updateBrand(modal.brand.id, d)
-    } else {
-      createBrand(d)
+  const handleSave = async (d: BrandInput) => {
+    setSaving(true)
+    setError('')
+    try {
+      const logo = await maybeUploadImage(d.logo)
+      await saveCrudRow(methods.brands, modal?.kind === 'edit' ? modal.brand.id : undefined, {
+        name: d.name.trim(),
+        images: logo ? [logo] : [],
+        status: d.status,
+      })
+      setModal(null)
+      await loadBrands()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save brand')
+    } finally {
+      setSaving(false)
     }
-    setModal(null)
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (modal?.kind === 'delete') {
-      deleteBrand(modal.brand.id)
-      setModal(null)
+      setSaving(true)
+      try {
+        await callGateway(methods.brands.delete, { guid: modal.brand.id })
+        setModal(null)
+        await loadBrands()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to delete brand')
+      } finally {
+        setSaving(false)
+      }
     }
   }
 
@@ -311,6 +369,7 @@ export default function BrandsPage() {
         <h1 className="text-[22px] font-extrabold text-foreground tracking-tight">Brands</h1>
         <p className="text-[13px] font-medium text-muted-foreground mt-0.5">Manage product brands and their models</p>
       </div>
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-semibold text-red-600">{error}</div>}
 
       <div className="bg-card rounded-2xl border border-black/[0.06] overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
         <div className="px-5 py-3.5 border-b border-black/[0.06] flex items-center gap-3">
@@ -348,7 +407,9 @@ export default function BrandsPage() {
             </tr>
           </thead>
           <tbody>
-            {paginated.length === 0 ? (
+            {loading ? (
+              <tr><td colSpan={6} className="px-5 py-16 text-center text-[13px] font-semibold text-muted-foreground">Loading brands...</td></tr>
+            ) : paginated.length === 0 ? (
               <tr><td colSpan={6} className="px-5 py-16 text-center">
                 <div className="flex flex-col items-center gap-2">
                   <svg className="w-8 h-8 text-muted-foreground/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
@@ -408,7 +469,7 @@ export default function BrandsPage() {
         <div className="px-5 py-4 border-t border-black/[0.06] flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <span className="text-[12px] font-medium text-muted-foreground">
-              Showing {filtered.length === 0 ? 0 : Math.min((page - 1) * pageSize + 1, filtered.length)}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+              Showing {total === 0 ? 0 : Math.min((page - 1) * pageSize + 1, total)}–{Math.min(page * pageSize, total)} of {total}
             </span>
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-medium text-muted-foreground">Rows per page:</span>
@@ -440,8 +501,8 @@ export default function BrandsPage() {
         </div>
       </div>
 
-      {modal?.kind === 'edit'   && <FormModal brand={modal.brand} onClose={() => setModal(null)} onSave={handleSave} />}
-      {modal?.kind === 'create' && <FormModal brand={null}        onClose={() => setModal(null)} onSave={handleSave} />}
+      {modal?.kind === 'edit'   && <FormModal brand={modal.brand} busy={saving} onClose={() => setModal(null)} onSave={handleSave} />}
+      {modal?.kind === 'create' && <FormModal brand={null} busy={saving} onClose={() => setModal(null)} onSave={handleSave} />}
       {modal?.kind === 'delete' && <DeleteModal name={modal.brand.name} onClose={() => setModal(null)} onConfirm={handleDelete} />}
     </div>
   )

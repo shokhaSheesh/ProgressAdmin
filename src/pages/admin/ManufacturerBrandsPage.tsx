@@ -1,34 +1,20 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { callGateway, methods } from '../../api/gateway'
+import { formatDate, imageFromRow, loadCrudRows, maybeUploadImage, rowStatus, saveCrudRow } from '../../api/adminCrud'
+import type { ApiRow } from '../../api/adminCrud'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type MBrandStatus = 'active' | 'inactive'
 
 interface MBrand {
-  id: number
+  id: string
   name: string
   logo: string
   status: MBrandStatus
   createdAt: string
 }
-
-// ─── Seed data ────────────────────────────────────────────────────────────────
-
-const initialBrands: MBrand[] = [
-  { id: 1,  name: 'Bosch',        logo: '', status: 'active',   createdAt: 'Jun 1, 2026'  },
-  { id: 2,  name: 'NGK',          logo: '', status: 'active',   createdAt: 'Jun 1, 2026'  },
-  { id: 3,  name: 'Brembo',       logo: '', status: 'active',   createdAt: 'Jun 2, 2026'  },
-  { id: 4,  name: 'Mann Filter',  logo: '', status: 'active',   createdAt: 'Jun 2, 2026'  },
-  { id: 5,  name: 'Gates',        logo: '', status: 'active',   createdAt: 'Jun 3, 2026'  },
-  { id: 6,  name: 'Bilstein',     logo: '', status: 'active',   createdAt: 'Jun 3, 2026'  },
-  { id: 7,  name: 'Hella',        logo: '', status: 'active',   createdAt: 'Jun 4, 2026'  },
-  { id: 8,  name: 'Febi Bilstein',logo: '', status: 'active',   createdAt: 'Jun 4, 2026'  },
-  { id: 9,  name: 'Sachs',        logo: '', status: 'inactive', createdAt: 'Jun 5, 2026'  },
-  { id: 10, name: 'SKF',          logo: '', status: 'active',   createdAt: 'Jun 5, 2026'  },
-  { id: 11, name: 'Continental',  logo: '', status: 'active',   createdAt: 'Jun 6, 2026'  },
-  { id: 12, name: 'Valeo',        logo: '', status: 'inactive', createdAt: 'Jun 6, 2026'  },
-]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -47,6 +33,16 @@ const avatarPalette = [
 
 function brandColor(name: string) {
   return avatarPalette[name.charCodeAt(0) % avatarPalette.length]
+}
+
+function mapMBrand(row: ApiRow): MBrand {
+  return {
+    id: row.guid,
+    name: row.name || '',
+    logo: imageFromRow(row),
+    status: rowStatus(row),
+    createdAt: formatDate(row.created_at),
+  }
 }
 
 function BrandAvatar({ logo, name, size = 36 }: { logo: string; name: string; size?: number }) {
@@ -241,33 +237,71 @@ function DeleteModal({ name, onConfirm, onClose }: { name: string; onConfirm: ()
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ManufacturerBrandsPage() {
-  const [brands, setBrands]           = useState<MBrand[]>(initialBrands)
+  const [brands, setBrands]           = useState<MBrand[]>([])
+  const [total, setTotal]             = useState(0)
+  const [loading, setLoading]         = useState(true)
+  const [saving, setSaving]           = useState(false)
+  const [error, setError]             = useState('')
   const [search, setSearch]           = useState('')
   const [page, setPage]               = useState(1)
   const [pageSize]                    = useState(20)
   const [editModal, setEditModal]     = useState<MBrand | null | 'new'>(null)
-  const [deleteModal, setDeleteModal] = useState<{ id: number; name: string } | null>(null)
+  const [deleteModal, setDeleteModal] = useState<{ id: string; name: string } | null>(null)
+
+  async function loadBrands() {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await loadCrudRows<ApiRow>(methods.manufacturerBrands.list, 'manufacturer_brands', page, pageSize, {}, search)
+      setBrands(response.rows.map(mapMBrand))
+      setTotal(response.total)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load manufacturer brands')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { void loadBrands() }, [page, pageSize, search])
 
   const totalActive   = brands.filter(b => b.status === 'active').length
   const totalInactive = brands.filter(b => b.status === 'inactive').length
 
-  const filtered  = brands.filter(b => !search.trim() || b.name.toLowerCase().includes(search.trim().toLowerCase()))
-  const pageCount = Math.ceil(filtered.length / pageSize)
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const pageCount = Math.ceil(total / pageSize)
+  const paginated = brands
 
-  function handleSave(data: Omit<MBrand, 'id' | 'createdAt'>) {
-    if (editModal === 'new') {
-      setBrands(prev => [{ id: Date.now(), createdAt: 'Jun 29, 2026', ...data }, ...prev])
-    } else if (editModal) {
-      setBrands(prev => prev.map(b => b.id === (editModal as MBrand).id ? { ...b, ...data } : b))
+  async function handleSave(data: Omit<MBrand, 'id' | 'createdAt'>) {
+    setSaving(true)
+    setError('')
+    try {
+      const logo = await maybeUploadImage(data.logo)
+      await saveCrudRow(methods.manufacturerBrands, editModal && editModal !== 'new' ? editModal.id : undefined, {
+        name: data.name,
+        images: logo ? [logo] : [],
+        status: data.status,
+      })
+      setEditModal(null)
+      await loadBrands()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save manufacturer brand')
+    } finally {
+      setSaving(false)
     }
-    setEditModal(null)
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!deleteModal) return
-    setBrands(prev => prev.filter(b => b.id !== deleteModal.id))
-    setDeleteModal(null)
+    setSaving(true)
+    setError('')
+    try {
+      await callGateway(methods.manufacturerBrands.delete, { guid: deleteModal.id })
+      setDeleteModal(null)
+      await loadBrands()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete manufacturer brand')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const thCls = 'px-5 py-3 text-left text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap'
@@ -279,12 +313,13 @@ export default function ManufacturerBrandsPage() {
         <h1 className="text-[22px] font-extrabold text-foreground tracking-tight">Manufacturer Brands</h1>
         <p className="text-[13px] font-medium text-muted-foreground mt-0.5">Brands that products belong to</p>
       </div>
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-semibold text-red-600">{error}</div>}
 
       {/* KPI cards */}
       <div className="grid grid-cols-3 gap-4">
         {[
           {
-            label: 'Total Brands', value: brands.length,
+            label: 'Total Brands', value: total,
             icon: <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>,
             iconBg: 'bg-blue-100', iconColor: 'text-blue-600',
           },
@@ -337,7 +372,9 @@ export default function ManufacturerBrandsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-black/[0.04]">
-              {paginated.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan={4} className="px-5 py-12 text-center text-[13px] font-medium text-muted-foreground">Loading brands...</td></tr>
+              ) : paginated.length === 0 ? (
                 <tr><td colSpan={4} className="px-5 py-12 text-center text-[13px] font-medium text-muted-foreground">No brands found</td></tr>
               ) : paginated.map(b => {
                 const sc = b.status === 'active'
@@ -384,7 +421,7 @@ export default function ManufacturerBrandsPage() {
         {pageCount > 1 && (
           <div className="px-5 py-3 border-t border-black/[0.06] flex items-center justify-between">
             <p className="text-[12px] font-medium text-muted-foreground">
-              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+              Showing {total === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total}
             </p>
             <div className="flex items-center gap-1">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
@@ -409,7 +446,7 @@ export default function ManufacturerBrandsPage() {
       {editModal !== null && (
         <BrandModal
           initial={editModal === 'new' ? undefined : editModal as MBrand}
-          onSave={handleSave}
+          onSave={saving ? () => undefined : handleSave}
           onClose={() => setEditModal(null)}
         />
       )}

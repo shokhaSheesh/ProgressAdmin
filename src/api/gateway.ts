@@ -167,4 +167,11 @@ export const methods = {
     update: 'update_location',
     delete: 'delete_location',
   },
+  regions: {
+    create: 'create_region',
+    list: 'list_regions',
+    get: 'get_region',
+    update: 'update_region',
+    delete: 'delete_region',
+  },
 } as const

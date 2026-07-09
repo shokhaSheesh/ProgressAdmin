@@ -1,28 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { callGateway, methods } from '../../api/gateway'
+import { formatDate, loadCrudRows, rowStatus, saveCrudRow } from '../../api/adminCrud'
+import type { ApiRow } from '../../api/adminCrud'
 
 type Status = 'active' | 'inactive'
 
 interface Region {
-  id: number; name: string; status: Status; createdAt: string
+  id: string; name: string; status: Status; createdAt: string
 }
 
-const initialRegions: Region[] = [
-  { id: 1,  name: 'Tashkent',      status: 'active',   createdAt: 'Jan 1, 2026'  },
-  { id: 2,  name: 'Samarkand',     status: 'active',   createdAt: 'Jan 1, 2026'  },
-  { id: 3,  name: 'Bukhara',       status: 'active',   createdAt: 'Jan 1, 2026'  },
-  { id: 4,  name: 'Namangan',      status: 'active',   createdAt: 'Jan 1, 2026'  },
-  { id: 5,  name: 'Andijan',       status: 'active',   createdAt: 'Jan 1, 2026'  },
-  { id: 6,  name: 'Fergana',       status: 'active',   createdAt: 'Jan 1, 2026'  },
-  { id: 7,  name: 'Nukus',         status: 'active',   createdAt: 'Jan 1, 2026'  },
-  { id: 8,  name: 'Termez',        status: 'inactive', createdAt: 'Jan 1, 2026'  },
-  { id: 9,  name: 'Qarshi',        status: 'active',   createdAt: 'Jan 1, 2026'  },
-  { id: 10, name: 'Jizzakh',       status: 'inactive', createdAt: 'Jan 1, 2026'  },
-  { id: 11, name: 'Navoiy',        status: 'active',   createdAt: 'Feb 3, 2026'  },
-  { id: 12, name: 'Guliston',      status: 'active',   createdAt: 'Feb 3, 2026'  },
-  { id: 13, name: 'Urganch',       status: 'active',   createdAt: 'Mar 10, 2026' },
-  { id: 14, name: 'Farg\'ona',     status: 'active',   createdAt: 'Mar 10, 2026' },
-]
+function mapRegion(row: ApiRow): Region {
+  return { id: row.guid, name: row.name || '', status: rowStatus(row), createdAt: formatDate(row.created_at) }
+}
 
 const statusConfig: Record<Status, { label: string; bg: string; text: string }> = {
   active:   { label: 'Active',   bg: 'bg-emerald-50', text: 'text-emerald-600' },
@@ -218,19 +208,37 @@ function PageSizeDropdown({ value, onChange }: { value: number; onChange: (n: nu
 type ModalState = { kind: 'edit'; region: Region } | { kind: 'delete'; region: Region } | { kind: 'create' } | null
 
 export default function RegionsPage() {
-  const [regions, setRegions]   = useState<Region[]>(initialRegions)
+  const [regions, setRegions]   = useState<Region[]>([])
+  const [total, setTotal]       = useState(0)
+  const [loading, setLoading]   = useState(true)
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState('')
   const [modal, setModal]       = useState<ModalState>(null)
   const [page, setPage]         = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [search, setSearch]     = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
-  const filtered = regions.filter((r) => {
-    const q = search.trim().toLowerCase()
-    return (statusFilter === 'all' || r.status === statusFilter) && (!q || r.name.toLowerCase().includes(q))
-  })
-  const pageCount = Math.ceil(filtered.length / pageSize)
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const pageCount = Math.ceil(total / pageSize)
+  const paginated = regions
+
+  async function loadRegions() {
+    setLoading(true)
+    setError('')
+    try {
+      const filter: Record<string, unknown> = {}
+      if (statusFilter !== 'all') filter.status = statusFilter
+      const response = await loadCrudRows<ApiRow>(methods.regions.list, 'regions', page, pageSize, filter, search)
+      setRegions(response.rows.map(mapRegion))
+      setTotal(response.total)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load regions')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { void loadRegions() }, [page, pageSize, search, statusFilter])
 
   const handleSearch = (v: string) => { setSearch(v); setPage(1) }
   const handleFilter = (v: StatusFilter) => { setStatusFilter(v); setPage(1) }
@@ -240,22 +248,36 @@ export default function RegionsPage() {
   const pEnd   = Math.min(pageCount, page + delta)
   const range  = Array.from({ length: pEnd - pStart + 1 }, (_, i) => pStart + i)
 
-  const handleSave = (d: FormState) => {
-    if (modal?.kind === 'edit') {
-      setRegions((prev) => prev.map((r) => r.id === modal.region.id ? { ...r, ...d } : r))
-    } else {
-      setRegions((prev) => [...prev, {
-        id: Date.now(), ...d,
-        createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      }])
+  const handleSave = async (d: FormState) => {
+    setSaving(true)
+    setError('')
+    try {
+      await saveCrudRow(methods.regions, modal?.kind === 'edit' ? modal.region.id : undefined, {
+        name: d.name.trim(),
+        status: d.status,
+      })
+      setModal(null)
+      await loadRegions()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save region')
+    } finally {
+      setSaving(false)
     }
-    setModal(null)
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (modal?.kind === 'delete') {
-      setRegions((prev) => prev.filter((r) => r.id !== modal.region.id))
-      setModal(null)
+      setSaving(true)
+      setError('')
+      try {
+        await callGateway(methods.regions.delete, { guid: modal.region.id })
+        setModal(null)
+        await loadRegions()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to delete region')
+      } finally {
+        setSaving(false)
+      }
     }
   }
 
@@ -265,6 +287,7 @@ export default function RegionsPage() {
         <h1 className="text-[22px] font-extrabold text-foreground tracking-tight">Regions</h1>
         <p className="text-[13px] font-medium text-muted-foreground mt-0.5">Manage delivery and service regions</p>
       </div>
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-semibold text-red-600">{error}</div>}
 
       {/* Table card */}
       <div className="bg-card rounded-2xl border border-black/[0.06] overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
@@ -303,7 +326,9 @@ export default function RegionsPage() {
             </tr>
           </thead>
           <tbody>
-            {paginated.length === 0 ? (
+            {loading ? (
+              <tr><td colSpan={5} className="px-5 py-16 text-center text-[13px] font-semibold text-muted-foreground">Loading regions...</td></tr>
+            ) : paginated.length === 0 ? (
               <tr><td colSpan={5} className="px-5 py-16 text-center">
                 <div className="flex flex-col items-center gap-2">
                   <svg className="w-8 h-8 text-muted-foreground/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
@@ -343,7 +368,7 @@ export default function RegionsPage() {
         <div className="px-5 py-4 border-t border-black/[0.06] flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <span className="text-[12px] font-medium text-muted-foreground">
-              Showing {filtered.length === 0 ? 0 : Math.min((page - 1) * pageSize + 1, filtered.length)}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+              Showing {total === 0 ? 0 : Math.min((page - 1) * pageSize + 1, total)}–{Math.min(page * pageSize, total)} of {total}
             </span>
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-medium text-muted-foreground">Rows per page:</span>
@@ -372,8 +397,8 @@ export default function RegionsPage() {
         </div>
       </div>
 
-      {modal?.kind === 'edit'   && <FormModal region={modal.region} onClose={() => setModal(null)} onSave={handleSave} />}
-      {modal?.kind === 'create' && <FormModal region={null}         onClose={() => setModal(null)} onSave={handleSave} />}
+      {modal?.kind === 'edit'   && <FormModal region={modal.region} onClose={() => setModal(null)} onSave={saving ? () => undefined : handleSave} />}
+      {modal?.kind === 'create' && <FormModal region={null}         onClose={() => setModal(null)} onSave={saving ? () => undefined : handleSave} />}
       {modal?.kind === 'delete' && <DeleteModal name={modal.region.name} onClose={() => setModal(null)} onConfirm={handleDelete} />}
     </div>
   )

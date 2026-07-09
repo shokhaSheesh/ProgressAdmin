@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { callGateway, methods } from '../../api/gateway'
+import { formatDate, loadCrudRows, rowStatus, saveCrudRow } from '../../api/adminCrud'
+import type { ApiRow } from '../../api/adminCrud'
 
 // fix default marker icons broken by bundlers
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl
@@ -19,27 +22,12 @@ type LocType = 'warehouse' | 'shop'
 interface WorkSchedule { days: string[]; from: string; to: string }
 
 interface Location {
-  id: number; name: string; managerName: string; managerPhone: string
+  id: string; name: string; managerName: string; managerPhone: string
   type: LocType; address: string; lat: number; lng: number
   status: Status; schedule: WorkSchedule[]; createdAt: string
 }
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-
-const initialLocations: Location[] = [
-  { id: 1,  name: 'Central Warehouse',    managerName: 'Akbar Toshmatov',  managerPhone: '+998 90 100 11 22', type: 'warehouse', address: 'Sergeli, 15-mavze, Tashkent',        lat: 41.2272, lng: 69.2680, status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '08:00', to: '18:00' }], createdAt: 'Jan 10, 2026' },
-  { id: 2,  name: 'AutoZone Tashkent',    managerName: 'Bekzod Saidov',    managerPhone: '+998 91 200 22 33', type: 'shop',      address: 'Yunusabad, 7-mavze, Tashkent',     lat: 41.3360, lng: 69.2928, status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '09:00', to: '19:00' }, { days: ['Sat','Sun'], from: '10:00', to: '16:00' }], createdAt: 'Jan 15, 2026' },
-  { id: 3,  name: 'Samarkand Depot',      managerName: 'Jasur Tursunov',   managerPhone: '+998 93 300 33 44', type: 'warehouse', address: 'Registon ko\'chasi 5, Samarkand',   lat: 39.6547, lng: 66.9597, status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '08:00', to: '17:00' }], createdAt: 'Feb 3, 2026'  },
-  { id: 4,  name: 'CarParts Express',     managerName: 'Dilnoza Yusupova', managerPhone: '+998 94 400 44 55', type: 'shop',      address: 'Chilonzor, 9-mavze, Tashkent',     lat: 41.2934, lng: 69.2300, status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '09:00', to: '20:00' }, { days: ['Sat'], from: '10:00', to: '15:00' }], createdAt: 'Feb 20, 2026' },
-  { id: 5,  name: 'North Warehouse',      managerName: 'Murod Xasanov',    managerPhone: '+998 97 500 55 66', type: 'warehouse', address: 'Shayxontohur, 3-mavze, Tashkent',  lat: 41.3190, lng: 69.2750, status: 'inactive', schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '08:00', to: '18:00' }], createdAt: 'Mar 5, 2026'  },
-  { id: 6,  name: 'MotoHub Andijan',      managerName: 'Sherzod Aliev',    managerPhone: '+998 90 600 66 77', type: 'shop',      address: 'Bobur ko\'chasi 22, Andijon',       lat: 40.7831, lng: 72.3522, status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '10:00', to: '20:00' }, { days: ['Sat','Sun'], from: '11:00', to: '18:00' }], createdAt: 'Mar 18, 2026' },
-  { id: 7,  name: 'Bukhara Storage',      managerName: 'Sanjar Mirzaev',   managerPhone: '+998 91 700 77 88', type: 'warehouse', address: 'Mustaqillik ko\'chasi 44, Buxoro',  lat: 39.7674, lng: 64.4231, status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '08:00', to: '17:00' }], createdAt: 'Apr 2, 2026'  },
-  { id: 8,  name: 'TireHub Yunusabad',    managerName: 'Zulfiya Karimova', managerPhone: '+998 93 800 88 99', type: 'shop',      address: 'Yunusabad, 19-mavze, Tashkent',    lat: 41.3490, lng: 69.3010, status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '09:00', to: '19:00' }, { days: ['Sat'], from: '10:00', to: '15:00' }], createdAt: 'Apr 15, 2026' },
-  { id: 9,  name: 'Fergana Distribution', managerName: 'Otajon Yuldashev', managerPhone: '+998 94 900 99 00', type: 'warehouse', address: 'Al-Farg\'oniy ko\'chasi 3, Farg\'ona', lat: 40.3834, lng: 71.7881, status: 'inactive', schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '08:00', to: '17:00' }], createdAt: 'May 1, 2026'  },
-  { id: 10, name: 'DriveZone Samarkand',  managerName: 'Kamola Nazarova',  managerPhone: '+998 97 010 10 11', type: 'shop',      address: 'Amir Temur ko\'chasi 11, Samarkand', lat: 39.6700, lng: 66.9750, status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '09:00', to: '20:00' }, { days: ['Sat','Sun'], from: '10:00', to: '17:00' }], createdAt: 'May 20, 2026' },
-]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -55,6 +43,31 @@ const avatarColors = ['bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-ambe
 const initials = (name: string) => name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase()
 
 function newScheduleRow(): WorkSchedule { return { days: [], from: '09:00', to: '18:00' } }
+
+function mapScheduleRows(schedule: WorkSchedule[]) {
+  return schedule.flatMap(row => row.days.map(day => ({
+    day_of_week: day,
+    opens_at: row.from,
+    closes_at: row.to,
+  })))
+}
+
+function mapLocation(row: ApiRow): Location {
+  const type = row.type === 'warehouse' ? 'warehouse' : 'shop'
+  return {
+    id: row.guid,
+    name: row.name || '',
+    managerName: row.manager_name || '',
+    managerPhone: row.manager_phone || '',
+    type,
+    address: row.address || '',
+    lat: Number(row.lat || 41.2995),
+    lng: Number(row.lng || 69.2401),
+    status: rowStatus(row),
+    schedule: [],
+    createdAt: formatDate(row.created_at),
+  }
+}
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
@@ -607,7 +620,11 @@ function TypeFilterDropdown({ value, onChange }: { value: TypeFilter; onChange: 
 type ModalState = { kind: 'edit'; location: Location } | { kind: 'delete'; location: Location } | { kind: 'create' } | null
 
 export default function LocationsPage() {
-  const [locations, setLocations] = useState<Location[]>(initialLocations)
+  const [locations, setLocations] = useState<Location[]>([])
+  const [total, setTotal]         = useState(0)
+  const [loading, setLoading]     = useState(true)
+  const [saving, setSaving]       = useState(false)
+  const [error, setError]         = useState('')
   const [modal, setModal]         = useState<ModalState>(null)
   const [page, setPage]           = useState(1)
   const [pageSize, setPageSize]   = useState(20)
@@ -615,14 +632,27 @@ export default function LocationsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [typeFilter, setTypeFilter]     = useState<TypeFilter>('all')
 
-  const filtered = locations.filter((l) => {
-    const q = search.trim().toLowerCase()
-    return (statusFilter === 'all' || l.status === statusFilter) &&
-           (typeFilter === 'all'   || l.type === typeFilter) &&
-           (!q || l.name.toLowerCase().includes(q) || l.managerName.toLowerCase().includes(q) || l.address.toLowerCase().includes(q))
-  })
-  const pageCount = Math.ceil(filtered.length / pageSize)
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const pageCount = Math.ceil(total / pageSize)
+  const paginated = locations
+
+  async function loadLocations() {
+    setLoading(true)
+    setError('')
+    try {
+      const filter: Record<string, unknown> = {}
+      if (statusFilter !== 'all') filter.status = statusFilter
+      if (typeFilter !== 'all') filter.type = typeFilter
+      const response = await loadCrudRows<ApiRow>(methods.locations.list, 'locations', page, pageSize, filter, search)
+      setLocations(response.rows.map(mapLocation))
+      setTotal(response.total)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load locations')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { void loadLocations() }, [page, pageSize, search, statusFilter, typeFilter])
 
   const handleSearch = (v: string) => { setSearch(v); setPage(1) }
   const handleStatus = (v: StatusFilter) => { setStatusFilter(v); setPage(1) }
@@ -633,16 +663,43 @@ export default function LocationsPage() {
   const pEnd   = Math.min(pageCount, page + delta)
   const range  = Array.from({ length: pEnd - pStart + 1 }, (_, i) => pStart + i)
 
-  const handleSave = (d: FormState) => {
-    if (modal?.kind === 'edit') {
-      setLocations((prev) => prev.map((l) => l.id === modal.location.id ? { ...l, ...d } : l))
-    } else {
-      setLocations((prev) => [{ id: Date.now(), ...d, createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }, ...prev])
+  const handleSave = async (d: FormState) => {
+    setSaving(true)
+    setError('')
+    try {
+      await saveCrudRow(methods.locations, modal?.kind === 'edit' ? modal.location.id : undefined, {
+        name: d.name,
+        manager_name: d.managerName,
+        manager_phone: d.managerPhone,
+        type: d.type,
+        address: d.address,
+        lat: d.lat,
+        lng: d.lng,
+        status: d.status,
+        location_working_schedules: mapScheduleRows(d.schedule),
+      })
+      setModal(null)
+      await loadLocations()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save location')
+    } finally {
+      setSaving(false)
     }
-    setModal(null)
   }
-  const handleDelete = () => {
-    if (modal?.kind === 'delete') { setLocations((prev) => prev.filter((l) => l.id !== modal.location.id)); setModal(null) }
+  const handleDelete = async () => {
+    if (modal?.kind === 'delete') {
+      setSaving(true)
+      setError('')
+      try {
+        await callGateway(methods.locations.delete, { guid: modal.location.id })
+        setModal(null)
+        await loadLocations()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to delete location')
+      } finally {
+        setSaving(false)
+      }
+    }
   }
 
   return (
@@ -651,6 +708,7 @@ export default function LocationsPage() {
         <h1 className="text-[22px] font-extrabold text-foreground tracking-tight">Locations</h1>
         <p className="text-[13px] font-medium text-muted-foreground mt-0.5">Manage warehouses and shop locations</p>
       </div>
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-semibold text-red-600">{error}</div>}
 
       <div className="bg-card rounded-2xl border border-black/[0.06] overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
         {/* Toolbar */}
@@ -693,7 +751,9 @@ export default function LocationsPage() {
               </tr>
             </thead>
             <tbody>
-              {paginated.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan={8} className="px-5 py-16 text-center text-[13px] font-semibold text-muted-foreground">Loading locations...</td></tr>
+              ) : paginated.length === 0 ? (
                 <tr><td colSpan={8} className="px-5 py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <svg className="w-8 h-8 text-muted-foreground/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
@@ -704,7 +764,7 @@ export default function LocationsPage() {
               ) : paginated.map((loc, i) => {
                 const sc = statusConfig[loc.status]
                 const tc = typeConfig[loc.type]
-                const ab = avatarColors[filtered.indexOf(loc) % avatarColors.length]
+                const ab = avatarColors[paginated.indexOf(loc) % avatarColors.length]
                 return (
                   <tr key={loc.id} className="border-b border-black/[0.04] hover:bg-[#F4F5F7]/70 transition-colors last:border-0">
                     <td className="px-5 py-3.5 text-[13px] font-medium text-muted-foreground">{(page - 1) * pageSize + i + 1}</td>
@@ -744,7 +804,7 @@ export default function LocationsPage() {
         <div className="px-5 py-4 border-t border-black/[0.06] flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <span className="text-[12px] font-medium text-muted-foreground">
-              Showing {filtered.length === 0 ? 0 : Math.min((page - 1) * pageSize + 1, filtered.length)}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+              Showing {total === 0 ? 0 : Math.min((page - 1) * pageSize + 1, total)}–{Math.min(page * pageSize, total)} of {total}
             </span>
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-medium text-muted-foreground">Rows per page:</span>
@@ -765,8 +825,8 @@ export default function LocationsPage() {
         </div>
       </div>
 
-      {modal?.kind === 'edit'   && <FormModal location={modal.location} onClose={() => setModal(null)} onSave={handleSave} />}
-      {modal?.kind === 'create' && <FormModal location={null}           onClose={() => setModal(null)} onSave={handleSave} />}
+      {modal?.kind === 'edit'   && <FormModal location={modal.location} onClose={() => setModal(null)} onSave={saving ? () => undefined : handleSave} />}
+      {modal?.kind === 'create' && <FormModal location={null}           onClose={() => setModal(null)} onSave={saving ? () => undefined : handleSave} />}
       {modal?.kind === 'delete' && <DeleteModal name={modal.location.name} onClose={() => setModal(null)} onConfirm={handleDelete} />}
     </div>
   )

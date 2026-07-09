@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { callGateway, methods } from '../../api/gateway'
+import { formatDate, loadCrudRows, rowStatus, saveCrudRow } from '../../api/adminCrud'
+import type { ApiRow } from '../../api/adminCrud'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -8,28 +11,13 @@ type Status = 'active' | 'inactive'
 interface WorkSchedule { days: string[]; from: string; to: string }
 
 interface Shop {
-  id: number; name: string; ownerName: string; ownerPhone: string
+  id: string; name: string; ownerName: string; ownerPhone: string
   address: string; status: Status; schedule: WorkSchedule[]; createdAt: string
 }
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 function newScheduleRow(): WorkSchedule { return { days: [], from: '09:00', to: '18:00' } }
-
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const initialShops: Shop[] = [
-  { id: 1,  name: 'AutoZone Tashkent',    ownerName: 'Bekzod Saidov',    ownerPhone: '+998 90 111 22 33', address: "Yunusabad, 7-mavze, 12-uy, Tashkent",      status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '09:00', to: '19:00' }, { days: ['Sat','Sun'], from: '10:00', to: '16:00' }], createdAt: 'Jan 5, 2026'  },
-  { id: 2,  name: 'CarParts Express',     ownerName: 'Jasur Tursunov',   ownerPhone: '+998 91 222 33 44', address: "Chilonzor, 9-mavze, 34-uy, Tashkent",      status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '09:00', to: '20:00' }, { days: ['Sat'], from: '10:00', to: '15:00' }], createdAt: 'Jan 20, 2026' },
-  { id: 3,  name: 'SparkMaster Pro',      ownerName: 'Dilnoza Yusupova', ownerPhone: '+998 93 333 44 55', address: "Registon ko'chasi 5, Samarkand",           status: 'inactive', schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '10:00', to: '18:00' }], createdAt: 'Feb 8, 2026'  },
-  { id: 4,  name: 'SuspensionKing',       ownerName: 'Murod Xasanov',    ownerPhone: '+998 94 444 55 66', address: "Navoiy ko'chasi 18, Namangan",             status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '08:00', to: '18:00' }, { days: ['Sat'], from: '09:00', to: '14:00' }], createdAt: 'Feb 22, 2026' },
-  { id: 5,  name: 'TireHub Yunusabad',    ownerName: 'Sherzod Aliev',    ownerPhone: '+998 97 555 66 77', address: "Yunusabad, 19-mavze, 8-uy, Tashkent",      status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '09:00', to: '19:00' }, { days: ['Sat'], from: '10:00', to: '15:00' }], createdAt: 'Mar 10, 2026' },
-  { id: 6,  name: 'MotoHub Andijan',      ownerName: 'Sanjar Mirzaev',   ownerPhone: '+998 90 666 77 88', address: "Bobur ko'chasi 22, Andijon",               status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '10:00', to: '20:00' }, { days: ['Sat','Sun'], from: '11:00', to: '18:00' }], createdAt: 'Mar 25, 2026' },
-  { id: 7,  name: 'DriveZone Samarkand',  ownerName: 'Zulfiya Karimova', ownerPhone: '+998 91 777 88 99', address: "Amir Temur ko'chasi 11, Samarkand",        status: 'inactive', schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '09:00', to: '18:00' }], createdAt: 'Apr 12, 2026' },
-  { id: 8,  name: 'AutoGuru Fergana',     ownerName: 'Nodir Qodirov',    ownerPhone: '+998 93 888 99 00', address: "Al-Farg'oniy ko'chasi 3, Farg'ona",        status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '08:00', to: '18:00' }, { days: ['Sat'], from: '09:00', to: '13:00' }], createdAt: 'Apr 28, 2026' },
-  { id: 9,  name: 'PartsPro Bukhara',     ownerName: 'Kamola Nazarova',  ownerPhone: '+998 94 999 00 11', address: "Mustaqillik ko'chasi 44, Buxoro",          status: 'active',   schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '09:00', to: '19:00' }], createdAt: 'May 14, 2026' },
-  { id: 10, name: 'GearShop Nukus',       ownerName: 'Otajon Yuldashev', ownerPhone: '+998 97 000 11 22', address: "Janubiy ko'chasi 9, Nukus",                status: 'inactive', schedule: [{ days: ['Mon','Tue','Wed','Thu','Fri'], from: '10:00', to: '18:00' }], createdAt: 'Jun 2, 2026'  },
-]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -42,6 +30,27 @@ const statusConfig: Record<Status, { label: string; bg: string; text: string }> 
 
 function initials(name: string) {
   return name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase()
+}
+
+function mapScheduleRows(schedule: WorkSchedule[]) {
+  return schedule.flatMap(row => row.days.map(day => ({
+    day_of_week: day,
+    opens_at: row.from,
+    closes_at: row.to,
+  })))
+}
+
+function mapShop(row: ApiRow): Shop {
+  return {
+    id: row.guid,
+    name: row.name || '',
+    ownerName: row.owner_name || '',
+    ownerPhone: row.owner_phone || '',
+    address: row.address || '',
+    status: rowStatus(row),
+    schedule: [],
+    createdAt: formatDate(row.created_at),
+  }
 }
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
@@ -371,50 +380,80 @@ type ModalState =
   | null
 
 export default function ShopsPage() {
-  const [shops, setShops]       = useState<Shop[]>(initialShops)
+  const [shops, setShops]       = useState<Shop[]>([])
+  const [total, setTotal]       = useState(0)
+  const [loading, setLoading]   = useState(true)
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState('')
   const [modal, setModal]       = useState<ModalState>(null)
   const [page, setPage]         = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [search, setSearch]     = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
-  const filtered = shops.filter((s) => {
-    const q = search.trim().toLowerCase()
-    return (
-      (statusFilter === 'all' || s.status === statusFilter) &&
-      (!q || s.name.toLowerCase().includes(q) || s.ownerName.toLowerCase().includes(q) || s.ownerPhone.includes(q) || s.address.toLowerCase().includes(q))
-    )
-  })
-  const pageCount = Math.ceil(filtered.length / pageSize)
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const pageCount = Math.ceil(total / pageSize)
+  const paginated = shops
+
+  async function loadShops() {
+    setLoading(true)
+    setError('')
+    try {
+      const filter: Record<string, unknown> = {}
+      if (statusFilter !== 'all') filter.status = statusFilter
+      const response = await loadCrudRows<ApiRow>(methods.shops.list, 'shops', page, pageSize, filter, search)
+      setShops(response.rows.map(mapShop))
+      setTotal(response.total)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load shops')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { void loadShops() }, [page, pageSize, search, statusFilter])
 
   const handleSearch = (v: string) => { setSearch(v); setPage(1) }
   const handleFilter = (v: StatusFilter) => { setStatusFilter(v); setPage(1) }
 
-  const handleSave = (d: FormState) => {
-    if (modal?.kind === 'edit') {
-      setShops((prev) => prev.map((s) => s.id === modal.shop.id ? { ...s, ...d } : s))
-    } else {
-      const newShop: Shop = {
-        id: Date.now(),
-        createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        ...d,
-      }
-      setShops((prev) => [newShop, ...prev])
-    }
-    setModal(null)
-  }
-
-  const handleDelete = () => {
-    if (modal?.kind === 'delete') {
-      setShops((prev) => prev.filter((s) => s.id !== modal.shop.id))
+  const handleSave = async (d: FormState) => {
+    setSaving(true)
+    setError('')
+    try {
+      await saveCrudRow(methods.shops, modal?.kind === 'edit' ? modal.shop.id : undefined, {
+        name: d.name,
+        owner_name: d.ownerName,
+        owner_phone: d.ownerPhone,
+        address: d.address,
+        status: d.status,
+        working_schedules: mapScheduleRows(d.schedule),
+      })
       setModal(null)
+      await loadShops()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save shop')
+    } finally {
+      setSaving(false)
     }
   }
 
-  const total    = shops.length
+  const handleDelete = async () => {
+    if (modal?.kind === 'delete') {
+      setSaving(true)
+      setError('')
+      try {
+        await callGateway(methods.shops.delete, { guid: modal.shop.id })
+        setModal(null)
+        await loadShops()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to delete shop')
+      } finally {
+        setSaving(false)
+      }
+    }
+  }
+
   const active   = shops.filter((s) => s.status === 'active').length
-  const inactive = total - active
+  const inactive = shops.filter((s) => s.status === 'inactive').length
 
   const delta = 2
   const start = Math.max(1, page - delta)
@@ -428,6 +467,7 @@ export default function ShopsPage() {
         <h1 className="text-[22px] font-extrabold text-foreground tracking-tight">Shops</h1>
         <p className="text-[13px] font-medium text-muted-foreground mt-0.5">Manage shops and their owners</p>
       </div>
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-semibold text-red-600">{error}</div>}
 
       {/* Stat cards */}
       <div className="grid grid-cols-3 gap-4">
@@ -487,7 +527,9 @@ export default function ShopsPage() {
               </tr>
             </thead>
             <tbody>
-              {paginated.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan={8} className="px-5 py-16 text-center text-[13px] font-semibold text-muted-foreground">Loading shops...</td></tr>
+              ) : paginated.length === 0 ? (
                 <tr><td colSpan={8} className="px-5 py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <svg className="w-8 h-8 text-muted-foreground/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
@@ -498,7 +540,7 @@ export default function ShopsPage() {
                   </div>
                 </td></tr>
               ) : paginated.map((shop) => {
-                const idx = filtered.indexOf(shop)
+                const idx = paginated.indexOf(shop)
                 const sc  = statusConfig[shop.status]
                 const ab  = avatarColors[idx % avatarColors.length]
                 return (
@@ -546,7 +588,7 @@ export default function ShopsPage() {
         <div className="px-5 py-4 border-t border-black/[0.06] flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <span className="text-[12px] font-medium text-muted-foreground">
-              Showing {filtered.length === 0 ? 0 : Math.min((page - 1) * pageSize + 1, filtered.length)}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+              Showing {total === 0 ? 0 : Math.min((page - 1) * pageSize + 1, total)}–{Math.min(page * pageSize, total)} of {total}
             </span>
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-medium text-muted-foreground">Rows per page:</span>
@@ -576,8 +618,8 @@ export default function ShopsPage() {
       </div>
 
       {/* Modals */}
-      {modal?.kind === 'edit'   && <FormModal shop={modal.shop} onClose={() => setModal(null)} onSave={handleSave} />}
-      {modal?.kind === 'create' && <FormModal shop={null}       onClose={() => setModal(null)} onSave={handleSave} />}
+      {modal?.kind === 'edit'   && <FormModal shop={modal.shop} onClose={() => setModal(null)} onSave={saving ? () => undefined : handleSave} />}
+      {modal?.kind === 'create' && <FormModal shop={null}       onClose={() => setModal(null)} onSave={saving ? () => undefined : handleSave} />}
       {modal?.kind === 'delete' && <DeleteModal name={modal.shop.name} onClose={() => setModal(null)} onConfirm={handleDelete} />}
     </div>
   )
