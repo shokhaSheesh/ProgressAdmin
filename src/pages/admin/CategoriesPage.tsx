@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { callGateway, gatewayList, methods } from '../../api/gateway'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -7,46 +8,30 @@ type Status = 'active' | 'inactive'
 type Lang   = 'uz' | 'ru' | 'en'
 
 interface Category {
-  id: number
-  parentId: number | null
+  id: string
+  parentId: string | null
   nameUz: string; nameRu: string; nameEn: string
   status: Status
   createdAt: string
+}
+
+interface CategoryRow {
+  guid: string
+  name?: string
+  categories_id?: string | null
+  is_active?: boolean
+  created_at?: string
+}
+
+interface CategoryListResponse {
+  categories?: CategoryRow[]
+  data?: CategoryRow[]
 }
 
 const LANGS: { key: Lang; label: string; flag: string }[] = [
   { key: 'uz', label: "O'zbekcha", flag: '🇺🇿' },
   { key: 'ru', label: 'Русский',   flag: '🇷🇺' },
   { key: 'en', label: 'English',   flag: '🇬🇧' },
-]
-
-// ─── Seed data ────────────────────────────────────────────────────────────────
-
-const initialCategories: Category[] = [
-  // Root categories
-  { id: 1,  parentId: null, nameEn: 'Engine Parts',    nameRu: 'Детали двигателя',    nameUz: 'Dvigatel qismlari',   status: 'active',   createdAt: 'Jan 5, 2026'  },
-  { id: 2,  parentId: null, nameEn: 'Brakes',           nameRu: 'Тормоза',             nameUz: 'Tormozlar',           status: 'active',   createdAt: 'Jan 5, 2026'  },
-  { id: 3,  parentId: null, nameEn: 'Suspension',       nameRu: 'Подвеска',            nameUz: 'Osma',                status: 'active',   createdAt: 'Jan 8, 2026'  },
-  { id: 4,  parentId: null, nameEn: 'Electrical',       nameRu: 'Электрика',           nameUz: 'Elektr qismlari',     status: 'active',   createdAt: 'Jan 12, 2026' },
-  { id: 5,  parentId: null, nameEn: 'Body Parts',       nameRu: 'Кузовные детали',     nameUz: 'Kuzov qismlari',      status: 'active',   createdAt: 'Jan 20, 2026' },
-  { id: 6,  parentId: null, nameEn: 'Tires & Wheels',   nameRu: 'Шины и диски',        nameUz: "Shina va g'ildirak",  status: 'active',   createdAt: 'Feb 3, 2026'  },
-  { id: 7,  parentId: null, nameEn: 'Filters',          nameRu: 'Фильтры',             nameUz: 'Filtrlar',            status: 'active',   createdAt: 'Feb 15, 2026' },
-  { id: 8,  parentId: null, nameEn: 'Transmission',     nameRu: 'Трансмиссия',         nameUz: 'Transmissiya',        status: 'inactive', createdAt: 'Mar 1, 2026'  },
-  { id: 9,  parentId: null, nameEn: 'Exhaust',          nameRu: 'Выхлопная система',   nameUz: 'Chiqindi tizimi',     status: 'active',   createdAt: 'Mar 18, 2026' },
-  { id: 10, parentId: null, nameEn: 'Cooling System',   nameRu: 'Система охлаждения',  nameUz: 'Sovutish tizimi',     status: 'inactive', createdAt: 'Apr 5, 2026'  },
-  // Sub-categories of Engine Parts (1)
-  { id: 11, parentId: 1,    nameEn: 'Oil System',       nameRu: 'Масляная система',    nameUz: 'Moy tizimi',          status: 'active',   createdAt: 'Apr 10, 2026' },
-  { id: 12, parentId: 1,    nameEn: 'Pistons & Rings',  nameRu: 'Поршни и кольца',     nameUz: 'Pistonlar va halqalar', status: 'active', createdAt: 'Apr 10, 2026' },
-  { id: 13, parentId: 1,    nameEn: 'Timing Parts',     nameRu: 'Детали ГРМ',          nameUz: 'GRM qismlari',        status: 'active',   createdAt: 'Apr 11, 2026' },
-  // Sub-categories of Brakes (2)
-  { id: 14, parentId: 2,    nameEn: 'Brake Pads',       nameRu: 'Тормозные колодки',   nameUz: 'Tormoz kolodkalari',  status: 'active',   createdAt: 'Apr 12, 2026' },
-  { id: 15, parentId: 2,    nameEn: 'Brake Discs',      nameRu: 'Тормозные диски',     nameUz: 'Tormoz disklari',     status: 'active',   createdAt: 'Apr 12, 2026' },
-  // Sub-categories of Filters (7)
-  { id: 16, parentId: 7,    nameEn: 'Oil Filters',      nameRu: 'Масляные фильтры',    nameUz: 'Moy filtrlari',       status: 'active',   createdAt: 'Apr 14, 2026' },
-  { id: 17, parentId: 7,    nameEn: 'Air Filters',      nameRu: 'Воздушные фильтры',   nameUz: 'Havo filtrlari',      status: 'active',   createdAt: 'Apr 14, 2026' },
-  { id: 18, parentId: 7,    nameEn: 'Fuel Filters',     nameRu: 'Топливные фильтры',   nameUz: 'Yoqilg\'i filtrlari', status: 'inactive', createdAt: 'Apr 15, 2026' },
-  // Sub-category of Suspension (3)
-  { id: 19, parentId: 3,    nameEn: 'Shock Absorbers',  nameRu: 'Амортизаторы',        nameUz: 'Amortizatorlar',      status: 'active',   createdAt: 'Apr 16, 2026' },
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -57,6 +42,26 @@ const statusConfig: Record<Status, { label: string; bg: string; text: string; do
 }
 
 const primaryName = (c: Category) => c.nameEn || c.nameRu || c.nameUz
+
+function formatDate(value?: string) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function mapCategory(row: CategoryRow): Category {
+  const name = row.name || ''
+  return {
+    id: row.guid,
+    parentId: row.categories_id || null,
+    nameUz: name,
+    nameRu: name,
+    nameEn: name,
+    status: row.is_active === false ? 'inactive' : 'active',
+    createdAt: formatDate(row.created_at),
+  }
+}
 
 function useEscClose(onClose: () => void) {
   useEffect(() => {
@@ -87,8 +92,8 @@ function ModalBackdrop({ onClose, children }: { onClose: () => void; children: R
 
 // ─── Delete Modal ─────────────────────────────────────────────────────────────
 
-function DeleteModal({ name, childCount, onClose, onConfirm }: {
-  name: string; childCount: number; onClose: () => void; onConfirm: () => void
+function DeleteModal({ name, childCount, busy, onClose, onConfirm }: {
+  name: string; childCount: number; busy?: boolean; onClose: () => void; onConfirm: () => void
 }) {
   return (
     <ModalBackdrop onClose={onClose}>
@@ -113,8 +118,8 @@ function DeleteModal({ name, childCount, onClose, onConfirm }: {
           </div>
         </div>
         <div className="flex gap-3 px-8 pb-8">
-          <button onClick={onClose} className="flex-1 rounded-xl py-3 text-[13px] font-semibold border-2 border-black/[0.08] text-foreground hover:bg-[#F4F5F7] transition-colors">Cancel</button>
-          <button onClick={onConfirm} className="flex-1 rounded-xl py-3 text-[13px] font-semibold bg-red-500 text-white hover:bg-red-600 active:scale-[0.98] transition-all" style={{ boxShadow: '0 2px 8px rgba(239,68,68,0.3)' }}>Yes, Delete</button>
+          <button onClick={onClose} disabled={busy} className="flex-1 rounded-xl py-3 text-[13px] font-semibold border-2 border-black/[0.08] text-foreground hover:bg-[#F4F5F7] transition-colors disabled:opacity-50">Cancel</button>
+          <button onClick={onConfirm} disabled={busy} className="flex-1 rounded-xl py-3 text-[13px] font-semibold bg-red-500 text-white hover:bg-red-600 active:scale-[0.98] transition-all disabled:opacity-50" style={{ boxShadow: '0 2px 8px rgba(239,68,68,0.3)' }}>{busy ? 'Deleting...' : 'Yes, Delete'}</button>
         </div>
       </div>
     </ModalBackdrop>
@@ -123,13 +128,14 @@ function DeleteModal({ name, childCount, onClose, onConfirm }: {
 
 // ─── Form Modal ───────────────────────────────────────────────────────────────
 
-interface FormState { nameUz: string; nameRu: string; nameEn: string; status: Status; parentId: number | null }
+interface FormState { nameUz: string; nameRu: string; nameEn: string; status: Status; parentId: string | null }
 
-function FormModal({ category, categories, onClose, onSave }: {
+function FormModal({ category, categories, busy, onClose, onSave }: {
   category: Category | null
   categories: Category[]
+  busy?: boolean
   onClose: () => void
-  onSave: (d: FormState) => void
+  onSave: (d: FormState) => void | Promise<void>
 }) {
   const isEdit = category !== null
   const [form, setForm] = useState<FormState>({
@@ -150,11 +156,11 @@ function FormModal({ category, categories, onClose, onSave }: {
   const valid = filled.uz && filled.ru && filled.en
 
   // Parent options: all categories except the one being edited and its descendants
-  function getDescendantIds(id: number): number[] {
+  function getDescendantIds(id: string): string[] {
     const children = categories.filter(c => c.parentId === id)
     return [id, ...children.flatMap(c => getDescendantIds(c.id))]
   }
-  const excludeIds = isEdit ? new Set(getDescendantIds(category.id)) : new Set<number>()
+  const excludeIds = isEdit ? new Set(getDescendantIds(category.id)) : new Set<string>()
   const parentOptions = categories.filter(c => !excludeIds.has(c.id))
 
   return (
@@ -186,7 +192,7 @@ function FormModal({ category, categories, onClose, onSave }: {
           <div className="flex flex-col gap-1.5">
             <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Parent Category <span className="normal-case font-medium">(optional)</span></label>
             <div className="relative">
-              <select value={form.parentId ?? ''} onChange={e => setForm(p => ({ ...p, parentId: e.target.value ? Number(e.target.value) : null }))}
+              <select value={form.parentId ?? ''} onChange={e => setForm(p => ({ ...p, parentId: e.target.value || null }))}
                 className="w-full appearance-none bg-[#F4F5F7] text-foreground rounded-xl px-4 py-2.5 pr-9 text-[13px] font-medium border border-transparent focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer">
                 <option value="">— None (root category) —</option>
                 {parentOptions.map(c => (
@@ -239,11 +245,11 @@ function FormModal({ category, categories, onClose, onSave }: {
           </div>
 
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 rounded-xl py-3 text-[13px] font-semibold border-2 border-black/[0.08] text-foreground hover:bg-[#F4F5F7] transition-colors">Cancel</button>
-            <button type="submit" disabled={!valid}
+            <button type="button" onClick={onClose} disabled={busy} className="flex-1 rounded-xl py-3 text-[13px] font-semibold border-2 border-black/[0.08] text-foreground hover:bg-[#F4F5F7] transition-colors disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={!valid || busy}
               className="flex-1 rounded-xl py-3 text-[13px] font-semibold bg-primary text-white hover:bg-primary-hover active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ boxShadow: '0 2px 8px rgba(37,99,235,0.3)' }}>
-              {isEdit ? 'Save Changes' : 'Add Category'}
+              {busy ? 'Saving...' : isEdit ? 'Save Changes' : 'Add Category'}
             </button>
           </div>
         </form>
@@ -304,8 +310,8 @@ interface TreeRowProps {
   category: Category
   categories: Category[]
   depth: number
-  expanded: Set<number>
-  onToggle: (id: number) => void
+  expanded: Set<string>
+  onToggle: (id: string) => void
   onEdit: (c: Category) => void
   onDelete: (c: Category) => void
 }
@@ -422,16 +428,39 @@ function PageSizeDropdown({ value, onChange }: { value: number; onChange: (n: nu
 }
 
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState<Category[]>(initialCategories)
+  const [categories, setCategories] = useState<Category[]>([])
   const [modal, setModal]           = useState<ModalState>(null)
   const [viewMode, setViewMode]     = useState<ViewMode>('table')
   const [page, setPage]             = useState(1)
   const [pageSize, setPageSize]     = useState(20)
   const [search, setSearch]         = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const [expanded, setExpanded]     = useState<Set<number>>(new Set([1, 2, 7]))
+  const [expanded, setExpanded]     = useState<Set<string>>(new Set())
+  const [loading, setLoading]       = useState(true)
+  const [saving, setSaving]         = useState(false)
+  const [error, setError]           = useState('')
 
-  function toggleExpanded(id: number) {
+  async function loadCategories() {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await gatewayList<CategoryListResponse>(methods.categories.list, { page: 1, limit: 500 })
+      const rows = response.categories || response.data || []
+      const mapped = rows.filter(row => row.guid).map(mapCategory)
+      setCategories(mapped)
+      setExpanded(prev => prev.size ? prev : new Set(mapped.filter(c => c.parentId === null).map(c => c.id)))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load categories')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadCategories()
+  }, [])
+
+  function toggleExpanded(id: string) {
     setExpanded(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
   function expandAll()   { setExpanded(new Set(categories.map(c => c.id))) }
@@ -462,28 +491,52 @@ export default function CategoriesPage() {
   const rootCount = categories.filter(c => c.parentId === null).length
   const subCount  = categories.filter(c => c.parentId !== null).length
 
-  function getDescendantIds(id: number): number[] {
+  function getDescendantIds(id: string): string[] {
     const children = categories.filter(c => c.parentId === id)
     return [id, ...children.flatMap(c => getDescendantIds(c.id))]
   }
 
-  const handleSave = (d: FormState) => {
-    if (modal?.kind === 'edit') {
-      setCategories(prev => prev.map(c => c.id === modal.category.id ? { ...c, ...d } : c))
-    } else {
-      setCategories(prev => [...prev, {
-        id: Date.now(), ...d,
-        createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      }])
+  const handleSave = async (d: FormState) => {
+    const name = d.nameEn.trim() || d.nameRu.trim() || d.nameUz.trim()
+    if (!name) return
+    setSaving(true)
+    setError('')
+    try {
+      const payload: Record<string, unknown> = {
+        name,
+        categories_id: d.parentId,
+        status: d.status,
+      }
+      if (modal?.kind === 'edit') {
+        await callGateway(methods.categories.update, { ...payload, guid: modal.category.id })
+      } else {
+        await callGateway(methods.categories.create, payload)
+      }
+      setModal(null)
+      await loadCategories()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save category')
+    } finally {
+      setSaving(false)
     }
-    setModal(null)
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (modal?.kind !== 'delete') return
-    const toRemove = new Set(getDescendantIds(modal.category.id))
-    setCategories(prev => prev.filter(c => !toRemove.has(c.id)))
-    setModal(null)
+    setSaving(true)
+    setError('')
+    try {
+      const ids = getDescendantIds(modal.category.id).reverse()
+      for (const id of ids) {
+        await callGateway(methods.categories.delete, { guid: id })
+      }
+      setModal(null)
+      await loadCategories()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete category')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const thCls = 'px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap'
@@ -505,6 +558,13 @@ export default function CategoriesPage() {
         <h1 className="text-[22px] font-extrabold text-foreground tracking-tight">Categories</h1>
         <p className="text-[13px] font-medium text-muted-foreground mt-0.5">Manage product categories and sub-categories in all languages</p>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-semibold text-red-600 flex items-center justify-between gap-3">
+          <span>{error}</span>
+          <button onClick={() => void loadCategories()} className="text-[12px] font-bold text-red-700 hover:underline">Retry</button>
+        </div>
+      )}
 
       {/* KPI cards */}
       <div className="grid grid-cols-3 gap-4">
@@ -598,8 +658,14 @@ export default function CategoriesPage() {
               </tr>
             </thead>
             <tbody>
+              {loading && (
+                <tr><td colSpan={viewMode === 'table' ? 5 : 4} className="px-5 py-16 text-center">
+                  <p className="text-[13px] font-semibold text-muted-foreground">Loading categories...</p>
+                </td></tr>
+              )}
+
               {/* ── Table view ── */}
-              {viewMode === 'table' && (
+              {!loading && viewMode === 'table' && (
                 paginated.length === 0 ? (
                   <tr><td colSpan={5} className="px-5 py-16 text-center">
                     <div className="flex flex-col items-center gap-2">
@@ -645,7 +711,7 @@ export default function CategoriesPage() {
               )}
 
               {/* ── Tree view ── */}
-              {viewMode === 'tree' && (
+              {!loading && viewMode === 'tree' && (
                 treeRoots.length === 0 ? (
                   <tr><td colSpan={5} className="px-5 py-16 text-center">
                     <div className="flex flex-col items-center gap-2">
@@ -700,12 +766,13 @@ export default function CategoriesPage() {
         )}
       </div>
 
-      {modal?.kind === 'edit'   && <FormModal category={modal.category} categories={categories} onClose={() => setModal(null)} onSave={handleSave} />}
-      {modal?.kind === 'create' && <FormModal category={null}           categories={categories} onClose={() => setModal(null)} onSave={handleSave} />}
+      {modal?.kind === 'edit'   && <FormModal category={modal.category} categories={categories} busy={saving} onClose={() => setModal(null)} onSave={handleSave} />}
+      {modal?.kind === 'create' && <FormModal category={null}           categories={categories} busy={saving} onClose={() => setModal(null)} onSave={handleSave} />}
       {modal?.kind === 'delete' && (
         <DeleteModal
           name={primaryName(modal.category)}
           childCount={categories.filter(c => c.parentId === modal.category.id).length}
+          busy={saving}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}
         />
