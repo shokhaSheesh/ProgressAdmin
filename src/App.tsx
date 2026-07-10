@@ -38,6 +38,7 @@ import DesignCategoriesPage from './pages/design/CategoriesPage'
 import DesignBrandsPage from './pages/design/BrandsPage'
 import DesignManufacturerBrandsPage from './pages/design/ManufacturerBrandsPage'
 import DesignOrdersPage from './pages/design/OrdersPage'
+import DesignOrderFormPage from './pages/design/OrderFormPage'
 import { isAuthenticated } from './api/gateway'
 
 function ProtectedAdmin({ mode = 'front' }: { mode?: 'front' | 'design' }) {
@@ -113,8 +114,8 @@ export default function App() {
           <Route path="banners/new" element={<BannerFormPage />} />
           <Route path="banners/:id/edit" element={<BannerFormPage />} />
           <Route path="orders" element={<DesignOrdersPage />} />
-          <Route path="orders/new" element={<OrderFormPage />} />
-          <Route path="orders/:id/edit" element={<OrderFormPage />} />
+          <Route path="orders/new" element={<DesignOrderFormPage />} />
+          <Route path="orders/:id/edit" element={<DesignOrderFormPage />} />
           <Route path="withdrawals" element={<WithdrawalsPage />} />
           <Route path="withdrawals/:id" element={<WithdrawalsDetailPage />} />
           <Route path="bonuses" element={<BonusesPage />} />
