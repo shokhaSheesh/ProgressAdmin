@@ -1,8 +1,53 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
-import { useOrders, deleteOrder } from '../../data/ordersStore'
-import type { Order, OrderStatus } from '../../data/ordersStore'
+import { callGateway, gatewayList, methods } from '../../api/gateway'
+import { formatDate } from '../../api/adminCrud'
+
+type OrderStatus = 'pending' | 'processing' | 'completed' | 'cancelled'
+type OrderProduct = {
+  productId: string
+  name: string
+  sku: string
+  image: string
+  price: number
+}
+type Order = {
+  id: string
+  orderNumber: string
+  buyerName: string
+  buyerPhone: string
+  shop: string
+  date: string
+  status: OrderStatus
+  products: OrderProduct[]
+  mechanicBonus: number
+  createdAt: string
+}
+type ApiOrderRow = {
+  guid: string
+  order_number?: string
+  buyer_name?: string
+  buyer_phone?: string
+  mechanic_bonus?: string[] | number[] | string | number | null
+  date?: string
+  status?: string
+  created_at?: string
+  products?: ApiOrderProduct[] | string | null
+}
+type ApiOrderProduct = {
+  product_id?: string
+  guid?: string
+  name?: string
+  sku?: string
+  image?: string
+  price?: string | number
+}
+type OrdersResponse = {
+  orders?: ApiOrderRow[]
+  data?: ApiOrderRow[]
+  total?: number
+}
 
 function useEscClose(onClose: () => void) {
   useEffect(() => {
@@ -130,6 +175,46 @@ function fmtPrice(n: number) {
   return n.toLocaleString('ru-RU').replace(/,/g, ' ') + ' UZS'
 }
 
+function parseProducts(value: ApiOrderRow['products']): ApiOrderProduct[] {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+function parseBonus(value: ApiOrderRow['mechanic_bonus']) {
+  if (Array.isArray(value)) return Number(value[0]) || 0
+  return Number(value) || 0
+}
+
+function mapOrder(row: ApiOrderRow): Order {
+  const products = parseProducts(row.products).map((product) => ({
+    productId: product.product_id || product.guid || product.sku || product.name || '',
+    name: product.name || 'Unnamed product',
+    sku: product.sku || '',
+    image: product.image || '',
+    price: Number(product.price) || 0,
+  }))
+  return {
+    id: row.guid,
+    orderNumber: row.order_number || row.guid,
+    buyerName: row.buyer_name || '',
+    buyerPhone: row.buyer_phone || '',
+    shop: '',
+    date: row.date ? formatDate(row.date) : formatDate(row.created_at),
+    status: ['pending', 'processing', 'completed', 'cancelled'].includes(row.status || '') ? row.status as OrderStatus : 'pending',
+    products,
+    mechanicBonus: parseBonus(row.mechanic_bonus),
+    createdAt: formatDate(row.created_at),
+  }
+}
+
 function ProductInitials({ name, image, size = 32 }: { name: string; image: string; size?: number }) {
   const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
   const colors = ['bg-blue-100 text-blue-600', 'bg-violet-100 text-violet-600', 'bg-amber-100 text-amber-600', 'bg-emerald-100 text-emerald-600', 'bg-rose-100 text-rose-600']
@@ -142,22 +227,44 @@ type ModalState = { kind: 'delete'; order: Order } | null
 
 export default function OrdersPage() {
   const navigate = useNavigate()
-  const orders   = useOrders()
+  const [orders, setOrders] = useState<Order[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [modal, setModal]   = useState<ModalState>(null)
   const [page, setPage]     = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
-  const filtered = orders.filter(o => {
-    const q = search.trim().toLowerCase()
-    const matchSearch = !q || [o.orderNumber, o.buyerName, o.buyerPhone, o.shop,
-      ...o.products.map(p => p.name), ...o.products.map(p => p.sku),
-    ].some(v => v.toLowerCase().includes(q))
-    return (statusFilter === 'all' || o.status === statusFilter) && matchSearch
-  })
-  const pageCount = Math.ceil(filtered.length / pageSize)
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError('')
+    gatewayList<OrdersResponse>(methods.orders.list, {
+      page,
+      limit: pageSize,
+      filter: statusFilter === 'all' ? {} : { status: statusFilter },
+      search: search.trim() || undefined,
+      sort: { created_at: -1 },
+    })
+      .then((response) => {
+        if (cancelled) return
+        const rows = response.orders || response.data || []
+        setOrders(rows.map(mapOrder))
+        setTotal(response.total ?? rows.length)
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load orders')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [page, pageSize, search, statusFilter])
+
+  const pageCount = Math.ceil(total / pageSize)
+  const paginated = orders
 
   const handleSearch = (v: string) => { setSearch(v); setPage(1) }
   const handleFilter = (v: StatusFilter) => { setStatusFilter(v); setPage(1) }
@@ -212,7 +319,15 @@ export default function OrdersPage() {
             </tr>
           </thead>
           <tbody>
-            {paginated.length === 0 ? (
+            {loading ? (
+              <tr><td colSpan={6} className="px-5 py-16 text-center">
+                <p className="text-[13px] font-semibold text-muted-foreground">Loading orders...</p>
+              </td></tr>
+            ) : error ? (
+              <tr><td colSpan={6} className="px-5 py-16 text-center">
+                <p className="text-[13px] font-semibold text-red-500">{error}</p>
+              </td></tr>
+            ) : paginated.length === 0 ? (
               <tr><td colSpan={6} className="px-5 py-16 text-center">
                 <div className="flex flex-col items-center gap-2">
                   <svg className="w-8 h-8 text-muted-foreground/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
@@ -245,11 +360,11 @@ export default function OrdersPage() {
                         ))}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[13px] font-semibold text-foreground truncate">{order.products[0].name}</p>
+                        <p className="text-[13px] font-semibold text-foreground truncate">{order.products[0]?.name || 'No products'}</p>
                         {order.products.length > 1 ? (
                           <p className="text-[11px] font-semibold text-primary mt-0.5">+{order.products.length - 1} more item{order.products.length > 2 ? 's' : ''}</p>
                         ) : (
-                          <p className="text-[11px] font-medium text-muted-foreground font-mono">{order.products[0].sku}</p>
+                          <p className="text-[11px] font-medium text-muted-foreground font-mono">{order.products[0]?.sku || ''}</p>
                         )}
                       </div>
                     </div>
@@ -289,7 +404,7 @@ export default function OrdersPage() {
         <div className="px-5 py-4 border-t border-black/[0.06] flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <span className="text-[12px] font-medium text-muted-foreground">
-              Showing {filtered.length === 0 ? 0 : Math.min((page - 1) * pageSize + 1, filtered.length)}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+              Showing {total === 0 ? 0 : Math.min((page - 1) * pageSize + 1, total)}–{Math.min(page * pageSize, total)} of {total}
             </span>
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-medium text-muted-foreground">Rows per page:</span>
@@ -323,7 +438,15 @@ export default function OrdersPage() {
 
       {modal?.kind === 'delete' && (
         <DeleteModal orderNumber={modal.order.orderNumber} onClose={() => setModal(null)}
-          onConfirm={() => { deleteOrder(modal.order.id); setModal(null) }} />
+          onConfirm={() => {
+            callGateway(methods.orders.delete, { guid: modal.order.id })
+              .then(() => {
+                setOrders((current) => current.filter((order) => order.id !== modal.order.id))
+                setTotal((current) => Math.max(0, current - 1))
+                setModal(null)
+              })
+              .catch((err) => setError(err instanceof Error ? err.message : 'Failed to delete order'))
+          }} />
       )}
     </div>
   )

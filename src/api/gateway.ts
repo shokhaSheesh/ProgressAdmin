@@ -174,4 +174,11 @@ export const methods = {
     update: 'update_region',
     delete: 'delete_region',
   },
+  orders: {
+    create: 'create_order',
+    list: 'list_orders',
+    get: 'get_order',
+    update: 'update_order',
+    delete: 'delete_order',
+  },
 } as const
