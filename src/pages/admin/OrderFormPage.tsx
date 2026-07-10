@@ -1,11 +1,45 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import {
-  getOrder, createOrder, updateOrder, nextOrderNumber,
-} from '../../data/ordersStore'
-import type { OrderProduct, OrderInput } from '../../data/ordersStore'
-import { useProducts } from '../../data/productsStore'
-import type { Product } from '../../data/productsStore'
+import { callGateway, gatewayList, methods } from '../../api/gateway'
+
+type OrderProduct = {
+  productId: string
+  name: string
+  sku: string
+  image: string
+  price: number
+}
+type Product = {
+  id: string
+  name: string
+  sku: string
+  image: string
+  price: number
+}
+type ApiProductRow = {
+  guid: string
+  name?: string
+  sku?: string
+  images?: string[] | null
+}
+type ApiOrderProduct = {
+  product_id?: string
+  guid?: string
+  name?: string
+  sku?: string
+  image?: string
+  price?: string | number
+}
+type ApiOrderRow = {
+  guid: string
+  order_number?: string
+  buyer_name?: string
+  buyer_phone?: string
+  mechanic_bonus?: string[] | number[] | string | number | null
+  date?: string
+  status?: 'pending' | 'processing' | 'completed' | 'cancelled'
+  products?: ApiOrderProduct[] | string | null
+}
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -67,6 +101,44 @@ const MOCK_CHANGELOGS: Record<number, ChangeEntry[]> = {
     { id: 3, timestamp: 'Mar 13, 2026 · 09:00', user: 'Shokhruz S.',   type: 'status',          label: 'Status changed', from: 'Pending', to: 'Processing' },
     { id: 4, timestamp: 'Mar 14, 2026 · 11:30', user: 'Shokhruz S.',   type: 'status',          label: 'Status changed', from: 'Processing', to: 'Completed' },
   ],
+}
+
+function parseProducts(value: ApiOrderRow['products']): ApiOrderProduct[] {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+function parseBonus(value: ApiOrderRow['mechanic_bonus']) {
+  if (Array.isArray(value)) return Number(value[0]) || 0
+  return Number(value) || 0
+}
+
+function mapOrderProduct(product: ApiOrderProduct): OrderProduct {
+  return {
+    productId: product.product_id || product.guid || '',
+    name: product.name || 'Unnamed product',
+    sku: product.sku || '',
+    image: product.image || '',
+    price: Number(product.price) || 0,
+  }
+}
+
+function mapProduct(row: ApiProductRow): Product {
+  return {
+    id: row.guid,
+    name: row.name || 'Unnamed product',
+    sku: row.sku || '',
+    image: Array.isArray(row.images) ? row.images[0] || '' : '',
+    price: 0,
+  }
 }
 
 function changeIcon(type: ChangeEntry['type']) {
@@ -170,8 +242,7 @@ function ChangeLog({ orderId }: { orderId: number | undefined }) {
 
 // ─── Product picker dropdown ────────────────────────────────────────────────────
 
-function ProductPicker({ excludeIds, onPick }: { excludeIds: number[]; onPick: (p: Product) => void }) {
-  const products = useProducts()
+function ProductPicker({ products, excludeIds, onPick }: { products: Product[]; excludeIds: string[]; onPick: (p: Product) => void }) {
   const [query, setQuery] = useState('')
   const [open, setOpen]   = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -223,28 +294,65 @@ function ProductPicker({ excludeIds, onPick }: { excludeIds: number[]; onPick: (
 
 const TODAY = new Date().toISOString().slice(0, 10)
 type Tab = 'info' | 'changelog'
+const newOrderNumber = () => `ORD-${Date.now()}`
 
 export default function OrderFormPage() {
   const { id }   = useParams<{ id: string }>()
   const navigate = useNavigate()
   const isEdit   = Boolean(id)
-  const existing = id ? getOrder(Number(id)) : undefined
 
   const [tab,        setTab]        = useState<Tab>('info')
-  const [buyerName,  setBuyerName]  = useState(existing?.buyerName  ?? '')
-  const [buyerPhone, setBuyerPhone] = useState(existing?.buyerPhone ?? '')
-  const [date,       setDate]       = useState(existing?.date       ?? TODAY)
-  const [orderNum,   setOrderNum]   = useState(existing?.orderNumber ?? nextOrderNumber())
-  const [products,   setProducts]   = useState<OrderProduct[]>(existing?.products ?? [])
-  const [mechBonus,  setMechBonus]  = useState(String(existing?.mechanicBonus ?? 0))
+  const [buyerName,  setBuyerName]  = useState('')
+  const [buyerPhone, setBuyerPhone] = useState('')
+  const [date,       setDate]       = useState(TODAY)
+  const [orderNum,   setOrderNum]   = useState(newOrderNumber())
+  const [products,   setProducts]   = useState<OrderProduct[]>([])
+  const [availableProducts, setAvailableProducts] = useState<Product[]>([])
+  const [mechBonus,  setMechBonus]  = useState('0')
   const [errors,     setErrors]     = useState<Record<string, string>>({})
+  const [loadError, setLoadError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    gatewayList<{ products?: ApiProductRow[]; data?: ApiProductRow[] }>(methods.products.list, {
+      page: 1,
+      limit: 500,
+      sort: { created_at: -1 },
+    })
+      .then((response) => {
+        if (cancelled) return
+        setAvailableProducts((response.products || response.data || []).map(mapProduct))
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : 'Failed to load products')
+      })
+
+    if (id) {
+      callGateway<{ order?: ApiOrderRow }>(methods.orders.get, { guid: id })
+        .then((response) => {
+          if (cancelled || !response.order) return
+          const order = response.order
+          setBuyerName(order.buyer_name || '')
+          setBuyerPhone(order.buyer_phone || '')
+          setDate(order.date || TODAY)
+          setOrderNum(order.order_number || '')
+          setProducts(parseProducts(order.products).map(mapOrderProduct))
+          setMechBonus(String(parseBonus(order.mechanic_bonus)))
+        })
+        .catch((err) => {
+          if (!cancelled) setLoadError(err instanceof Error ? err.message : 'Failed to load order')
+        })
+    }
+    return () => { cancelled = true }
+  }, [id])
 
   function addProduct(p: Product) {
     setProducts(prev => [...prev, { productId: p.id, name: p.name, sku: p.sku, image: p.image, price: p.price }])
     setErrors(prev => ({ ...prev, products: '' }))
   }
 
-  function removeProduct(productId: number) {
+  function removeProduct(productId: string) {
     setProducts(prev => prev.filter(p => p.productId !== productId))
   }
 
@@ -257,21 +365,28 @@ export default function OrderFormPage() {
     return Object.keys(e).length === 0
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validate()) return
-    const input: OrderInput = {
-      orderNumber: orderNum, buyerName, buyerPhone,
-      shop: existing?.shop ?? '', date,
-      status: existing?.status ?? 'pending', products,
+    setSaving(true)
+    setLoadError('')
+    const payload = {
+      orderNumber: orderNum,
+      buyerName,
+      buyerPhone,
+      date,
+      status: 'pending',
+      products: products.map((product) => ({ products_id: product.productId })),
       mechanicBonus: Number(mechBonus) || 0,
     }
-    if (isEdit && id) {
-      updateOrder(Number(id), input)
-    } else {
-      createOrder(input)
+    try {
+      await callGateway(isEdit && id ? methods.orders.update : methods.orders.create, isEdit && id ? { ...payload, guid: id } : payload)
+      navigate('/admin/orders')
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Failed to save order')
+    } finally {
+      setSaving(false)
     }
-    navigate('/admin/orders')
   }
 
   return (
@@ -286,7 +401,7 @@ export default function OrderFormPage() {
           <div className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
             <button onClick={() => navigate('/admin/orders')} className="hover:text-foreground transition-colors">Orders</button>
             <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
-            <span className="text-foreground font-semibold">{isEdit ? existing?.orderNumber ?? 'Edit Order' : 'New Order'}</span>
+            <span className="text-foreground font-semibold">{isEdit ? orderNum || 'Edit Order' : 'New Order'}</span>
           </div>
         </div>
 
@@ -315,7 +430,7 @@ export default function OrderFormPage() {
       {/* Tab: Change Log */}
       {tab === 'changelog' && (
         <div className="flex-1 overflow-auto bg-background">
-          <ChangeLog orderId={existing?.id} />
+          <ChangeLog orderId={undefined} />
         </div>
       )}
 
@@ -346,7 +461,8 @@ export default function OrderFormPage() {
                 </div>
 
                 <div className="p-6 flex flex-col gap-4">
-                  <ProductPicker excludeIds={products.map(p => p.productId)} onPick={addProduct} />
+                  <ProductPicker products={availableProducts} excludeIds={products.map(p => p.productId)} onPick={addProduct} />
+                  {loadError && <p className="text-[11px] font-medium text-red-500 -mt-1">{loadError}</p>}
                   {errors.products && <p className="text-[11px] font-medium text-red-500 -mt-1">{errors.products}</p>}
 
                   {products.length > 0 ? (
@@ -485,10 +601,10 @@ export default function OrderFormPage() {
                 className="px-5 py-2.5 rounded-xl text-[13px] font-semibold border-2 border-black/[0.08] text-foreground hover:bg-[#F4F5F7] transition-colors">
                 Cancel
               </button>
-              <button onClick={handleSubmit}
+              <button onClick={handleSubmit} disabled={saving}
                 className="px-6 py-2.5 rounded-xl text-[13px] font-semibold bg-primary text-white hover:bg-primary-hover active:scale-[0.98] transition-all"
                 style={{ boxShadow: '0 2px 8px rgba(37,99,235,0.3)' }}>
-                {isEdit ? 'Save Changes' : 'Create Order'}
+                {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Order'}
               </button>
             </div>
           </div>
