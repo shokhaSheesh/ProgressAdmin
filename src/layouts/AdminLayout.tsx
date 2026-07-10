@@ -1,8 +1,11 @@
 import { useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import AdminSidebar from '../components/AdminSidebar'
 
-export default function AdminLayout() {
+export default function AdminLayout({ mode = 'front' }: { mode?: 'front' | 'design' }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const basePath = mode === 'design' ? '/admin-design' : '/admin'
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem('sidebar-collapsed') === 'true'
   )
@@ -14,9 +17,18 @@ export default function AdminLayout() {
       return next
     })
 
+  const switchMode = (nextMode: 'front' | 'design') => {
+    const fromBase = mode === 'design' ? '/admin-design' : '/admin'
+    const toBase = nextMode === 'design' ? '/admin-design' : '/admin'
+    const rest = location.pathname.startsWith(fromBase)
+      ? location.pathname.slice(fromBase.length)
+      : ''
+    navigate(`${toBase}${rest || ''}${location.search}`)
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <AdminSidebar collapsed={collapsed} />
+      <AdminSidebar collapsed={collapsed} basePath={basePath} />
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* ── Topbar ── */}
@@ -37,6 +49,25 @@ export default function AdminLayout() {
               <rect y="12" width="12" height="2" rx="1" fill="currentColor" />
             </svg>
           </button>
+          <div className="flex items-center gap-1 rounded-xl bg-[#F4F5F7] p-1">
+            {([
+              { key: 'front' as const, label: 'Front page' },
+              { key: 'design' as const, label: 'Design page' },
+            ]).map((item) => (
+              <button
+                key={item.key}
+                onClick={() => switchMode(item.key)}
+                className={[
+                  'h-8 px-4 rounded-lg text-[13px] font-semibold transition-all',
+                  mode === item.key
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
+                ].join(' ')}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </header>
 
         {/* ── Page content ── */}

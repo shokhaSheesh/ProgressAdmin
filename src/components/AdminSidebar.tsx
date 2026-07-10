@@ -245,10 +245,12 @@ const nav: NavGroup[] = [
 
 interface AdminSidebarProps {
   collapsed: boolean
+  basePath?: string
 }
 
-export default function AdminSidebar({ collapsed }: AdminSidebarProps) {
+export default function AdminSidebar({ collapsed, basePath = '/admin' }: AdminSidebarProps) {
   const navigate = useNavigate()
+  const prefixed = (path: string) => path.replace(/^\/admin/, basePath)
 
   return (
     <aside
@@ -265,7 +267,7 @@ export default function AdminSidebar({ collapsed }: AdminSidebarProps) {
         style={{ height: 60, padding: collapsed ? '0 0 0 18px' : '0 20px' }}
       >
         <button
-          onClick={() => navigate('/admin')}
+          onClick={() => navigate(basePath)}
           className="flex items-center gap-2.5 min-w-0"
         >
           <span className="w-7 h-7 rounded-lg bg-white/[0.12] flex items-center justify-center shrink-0">
@@ -298,7 +300,7 @@ export default function AdminSidebar({ collapsed }: AdminSidebarProps) {
             {group.items.map((item) => (
               <NavLink
                 key={item.path}
-                to={item.path}
+                to={prefixed(item.path)}
                 end={item.path === '/admin'}
                 className={({ isActive }) => [
                   'flex items-center gap-3 transition-all relative group',

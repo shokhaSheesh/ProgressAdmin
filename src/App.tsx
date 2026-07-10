@@ -29,10 +29,18 @@ import NotificationFormPage from './pages/admin/NotificationFormPage'
 import InventoryQrPrintPage from './pages/admin/InventoryQrPrintPage'
 import BannersPage from './pages/admin/BannersPage'
 import BannerFormPage from './pages/admin/BannerFormPage'
+import DesignShopsPage from './pages/design/ShopsPage'
+import DesignRegionsPage from './pages/design/RegionsPage'
+import DesignLocationsPage from './pages/design/LocationsPage'
+import DesignProductsPage from './pages/design/ProductsPage'
+import DesignProductFormPage from './pages/design/ProductFormPage'
+import DesignCategoriesPage from './pages/design/CategoriesPage'
+import DesignBrandsPage from './pages/design/BrandsPage'
+import DesignManufacturerBrandsPage from './pages/design/ManufacturerBrandsPage'
 import { isAuthenticated } from './api/gateway'
 
-function ProtectedAdmin() {
-  return isAuthenticated() ? <AdminLayout /> : <Navigate to="/login" replace />
+function ProtectedAdmin({ mode = 'front' }: { mode?: 'front' | 'design' }) {
+  return isAuthenticated() ? <AdminLayout mode={mode} /> : <Navigate to="/login" replace />
 }
 
 export default function App() {
@@ -63,6 +71,43 @@ export default function App() {
           <Route path="brands" element={<BrandsPage />} />
           <Route path="brands/:id" element={<BrandDetailPage />} />
           <Route path="manufacturer-brands" element={<ManufacturerBrandsPage />} />
+          <Route path="banners" element={<BannersPage />} />
+          <Route path="banners/new" element={<BannerFormPage />} />
+          <Route path="banners/:id/edit" element={<BannerFormPage />} />
+          <Route path="orders" element={<OrdersPage />} />
+          <Route path="orders/new" element={<OrderFormPage />} />
+          <Route path="orders/:id/edit" element={<OrderFormPage />} />
+          <Route path="withdrawals" element={<WithdrawalsPage />} />
+          <Route path="withdrawals/:id" element={<WithdrawalsDetailPage />} />
+          <Route path="bonuses" element={<BonusesPage />} />
+          <Route path="bonus-history" element={<BonusHistoryPage />} />
+          <Route path="roles" element={<div className="p-6 text-foreground font-semibold">Roles & Permissions — coming soon</div>} />
+          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="notifications/new" element={<NotificationFormPage />} />
+          <Route path="notifications/:id/edit" element={<NotificationFormPage />} />
+        </Route>
+
+        {/* Static design comparison panel */}
+        <Route path="/admin-design" element={<ProtectedAdmin mode="design" />}>
+          <Route index element={<DashboardPage />} />
+          <Route path="users" element={<UsersPage />} />
+          <Route path="admin-users" element={<AdminUsersPage />} />
+          <Route path="shops" element={<DesignShopsPage />} />
+          <Route path="requests" element={<RequestsPage />} />
+          <Route path="regions" element={<DesignRegionsPage />} />
+          <Route path="locations" element={<DesignLocationsPage />} />
+          <Route path="products" element={<DesignProductsPage />} />
+          <Route path="products/new" element={<DesignProductFormPage />} />
+          <Route path="products/:id/edit" element={<DesignProductFormPage />} />
+          <Route path="categories" element={<DesignCategoriesPage />} />
+          <Route path="inventory" element={<InventoryPage />} />
+          <Route path="inventory/:id/print-qr" element={<InventoryQrPrintPage />} />
+          <Route path="transfer" element={<TransfersPage />} />
+          <Route path="transfer/new" element={<TransferFormPage />} />
+          <Route path="transfer/:id/edit" element={<TransferFormPage />} />
+          <Route path="brands" element={<DesignBrandsPage />} />
+          <Route path="brands/:id" element={<BrandDetailPage />} />
+          <Route path="manufacturer-brands" element={<DesignManufacturerBrandsPage />} />
           <Route path="banners" element={<BannersPage />} />
           <Route path="banners/new" element={<BannerFormPage />} />
           <Route path="banners/:id/edit" element={<BannerFormPage />} />
