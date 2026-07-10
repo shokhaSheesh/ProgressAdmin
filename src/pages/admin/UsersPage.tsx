@@ -37,8 +37,6 @@ type UsersResponse = {
 }
 type RegionRow = { guid: string; name?: string }
 type RegionsResponse = { regions?: RegionRow[]; data?: RegionRow[] }
-const MERCHANT_ROLE_ID = '8384218e-7609-4144-848b-4f0f36cde257'
-const PROGRESS_USER_CLIENT_TYPE_ID = '146051a6-dbf4-41d4-97af-4bfcfb5f370c'
 
 // ─── Mock data — Mechanics ───────────────────────────────────────────────────
 
@@ -609,8 +607,6 @@ export default function UsersPage() {
     setLoading(true)
     setError('')
     const filter: Record<string, unknown> = {}
-    filter.role_id = MERCHANT_ROLE_ID
-    filter.client_type_id = PROGRESS_USER_CLIENT_TYPE_ID
     if (mFilter !== 'all') filter.status = mFilter
     gatewayList<UsersResponse>(methods.users.list, {
       page: mPage,
@@ -637,9 +633,9 @@ export default function UsersPage() {
       .then(response => setRegions(response.regions || response.data || []))
       .catch(() => setRegions([]))
     Promise.all([
-      gatewayList<UsersResponse>(methods.users.list, { page: 1, limit: 1, filter: { role_id: MERCHANT_ROLE_ID, client_type_id: PROGRESS_USER_CLIENT_TYPE_ID } }),
-      gatewayList<UsersResponse>(methods.users.list, { page: 1, limit: 1, filter: { role_id: MERCHANT_ROLE_ID, client_type_id: PROGRESS_USER_CLIENT_TYPE_ID, status: 'active' } }),
-      gatewayList<UsersResponse>(methods.users.list, { page: 1, limit: 1, filter: { role_id: MERCHANT_ROLE_ID, client_type_id: PROGRESS_USER_CLIENT_TYPE_ID, status: 'inactive' } }),
+      gatewayList<UsersResponse>(methods.users.list, { page: 1, limit: 1 }),
+      gatewayList<UsersResponse>(methods.users.list, { page: 1, limit: 1, filter: { status: 'active' } }),
+      gatewayList<UsersResponse>(methods.users.list, { page: 1, limit: 1, filter: { status: 'inactive' } }),
     ]).then(([total, active, inactive]) => {
       setMStatTotal(total.total ?? 0)
       setMActive(active.total ?? 0)
