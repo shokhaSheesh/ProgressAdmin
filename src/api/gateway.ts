@@ -5,6 +5,10 @@ const PROJECT_ID = '9384c816-bc2d-441f-a8b0-056ee3d4fd06'
 const ADMIN_CLIENT_TYPE_ID = '278ced59-5cdd-4d32-b3f7-f2e8bc83f924'
 
 const TOKEN_KEY = 'progress-admin-access-token'
+const REFRESH_TOKEN_KEY = 'progress-admin-refresh-token'
+const TOKEN_EXPIRES_AT_KEY = 'progress-admin-token-expires-at'
+const TOKEN_CREATED_AT_KEY = 'progress-admin-token-created-at'
+const REFRESH_IN_SECONDS_KEY = 'progress-admin-refresh-in-seconds'
 
 export type GatewayListPayload = {
   page?: number
@@ -23,12 +27,40 @@ export function getAccessToken() {
   return localStorage.getItem(TOKEN_KEY) || ''
 }
 
+export function getRefreshToken() {
+  return localStorage.getItem(REFRESH_TOKEN_KEY) || ''
+}
+
+type TokenData = {
+  access_token?: string
+  token?: string
+  refresh_token?: string
+  expires_at?: string
+  created_at?: string
+  refresh_in_seconds?: number | string
+}
+
+function storeTokenData(tokenData: TokenData) {
+  const accessToken = tokenData.access_token || tokenData.token
+  if (accessToken) localStorage.setItem(TOKEN_KEY, accessToken)
+  if (tokenData.refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, tokenData.refresh_token)
+  if (tokenData.expires_at) localStorage.setItem(TOKEN_EXPIRES_AT_KEY, tokenData.expires_at)
+  if (tokenData.created_at) localStorage.setItem(TOKEN_CREATED_AT_KEY, tokenData.created_at)
+  if (tokenData.refresh_in_seconds !== undefined) {
+    localStorage.setItem(REFRESH_IN_SECONDS_KEY, String(tokenData.refresh_in_seconds))
+  }
+}
+
 export function setAccessToken(token: string) {
-  localStorage.setItem(TOKEN_KEY, token)
+  storeTokenData({ access_token: token })
 }
 
 export function clearAccessToken() {
   localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(REFRESH_TOKEN_KEY)
+  localStorage.removeItem(TOKEN_EXPIRES_AT_KEY)
+  localStorage.removeItem(TOKEN_CREATED_AT_KEY)
+  localStorage.removeItem(REFRESH_IN_SECONDS_KEY)
 }
 
 export function isAuthenticated() {
@@ -39,7 +71,77 @@ function functionUrl() {
   return import.meta.env.VITE_FUNCTION_URL || DEFAULT_FUNCTION_URL
 }
 
-export async function callGateway<T>(method: string, objectData: Record<string, unknown> = {}, token = getAccessToken()): Promise<T> {
+function extractTokenData(value: unknown): TokenData {
+  if (!value || typeof value !== 'object') return {}
+  const root = (value || {}) as {
+    token?: TokenData
+    data?: { token?: TokenData } | TokenData
+  }
+  if (root.token && typeof root.token === 'object') return root.token
+  const nestedData = root.data
+  if (nestedData && typeof nestedData === 'object' && 'token' in nestedData && nestedData.token && typeof nestedData.token === 'object') {
+    return nestedData.token
+  }
+  return nestedData && typeof nestedData === 'object' ? nestedData as TokenData : {}
+}
+
+function isAuthFailure(res: Response, payload: Record<string, unknown> | null, json: Record<string, unknown> | null) {
+  if (res.status === 401) return true
+  const text = [
+    payload?.server_error,
+    (payload?.data as { message?: string; error?: string } | undefined)?.message,
+    (payload?.data as { message?: string; error?: string } | undefined)?.error,
+    json?.description,
+    json?.data,
+  ].map(String).join(' ').toLowerCase()
+  return text.includes('unauthenticated') || text.includes('token') && (text.includes('expired') || text.includes('invalid'))
+}
+
+let refreshPromise: Promise<string> | null = null
+
+async function refreshAccessToken() {
+  if (refreshPromise) return refreshPromise
+  refreshPromise = (async () => {
+    const refreshToken = getRefreshToken()
+    if (!refreshToken) throw new Error('No refresh token stored')
+
+    const res = await fetch(functionUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: {
+          method: 'refresh_token',
+          object_data: {
+            refresh_token: refreshToken,
+            project_id: PROJECT_ID,
+          },
+        },
+      }),
+    })
+
+    const json = await res.json().catch(() => null)
+    const payload = json?.data?.status ? json.data : json
+    if (!res.ok || !payload || payload.status !== 'success') {
+      throw new Error(payload?.data?.message || payload?.data?.error || payload?.server_error || json?.description || 'Refresh token failed')
+    }
+
+    const tokenData = extractTokenData(payload.data)
+    const newAccess = tokenData.access_token || tokenData.token
+    if (!newAccess) throw new Error('Refresh response did not include access token')
+    storeTokenData(tokenData)
+    return newAccess
+  })().finally(() => {
+    refreshPromise = null
+  })
+  return refreshPromise
+}
+
+export async function callGateway<T>(
+  method: string,
+  objectData: Record<string, unknown> = {},
+  token = getAccessToken(),
+  retryOnAuthFailure = true,
+): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
@@ -59,6 +161,15 @@ export async function callGateway<T>(method: string, objectData: Record<string, 
   const json = await res.json().catch(() => null)
   const payload = json?.data?.status ? json.data : json
   if (!res.ok || !payload || payload.status !== 'success') {
+    if (retryOnAuthFailure && isAuthFailure(res, payload, json)) {
+      try {
+        const newToken = await refreshAccessToken()
+        return callGateway<T>(method, objectData, newToken, false)
+      } catch (err) {
+        clearAccessToken()
+        throw err
+      }
+    }
     const message = payload?.data?.message || payload?.data?.error || payload?.server_error || json?.description || 'Request failed'
     throw new Error(message)
   }
@@ -81,29 +192,31 @@ export async function adminLogin(login: string, password: string) {
   const data = (await res.json().catch(() => null)) as {
     status?: string
     description?: string
-    data?: { token?: { access_token?: string } }
-    token?: { access_token?: string }
+    data?: { token?: TokenData }
+    token?: TokenData
   } | null
 
   if (!res.ok || !data || (data.status && data.status !== 'CREATED' && data.status !== 'OK' && data.status !== 'done')) {
     throw new Error(data?.description || 'Login failed')
   }
 
-  const token = data.data?.token?.access_token || data.token?.access_token
+  const tokenData = data.data?.token || data.token || {}
+  const token = tokenData.access_token || tokenData.token
   if (!token) throw new Error('Login response did not include access token')
-  setAccessToken(token)
+  storeTokenData(tokenData)
   return data
 }
 
 export async function adminLoginViaGateway(login: string, password: string) {
   const data = await callGateway<{
-    data?: { token?: { access_token?: string } }
-    token?: { access_token?: string }
+    data?: { token?: TokenData }
+    token?: TokenData
   }>('admin_login', { login, password }, '')
 
-  const token = data.data?.token?.access_token || data.token?.access_token
+  const tokenData = data.data?.token || data.token || {}
+  const token = tokenData.access_token || tokenData.token
   if (!token) throw new Error('Login response did not include access token')
-  setAccessToken(token)
+  storeTokenData(tokenData)
   return data
 }
 
