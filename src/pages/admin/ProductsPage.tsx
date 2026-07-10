@@ -121,7 +121,18 @@ type ProductRow = {
   manufacturer_brand_name?: string
   brand_name?: string
   model_name?: string
+  variant_count?: number | string
+  variant_options?: VariantOptionRow[] | string | null
   created_at?: string
+}
+type VariantOptionRow = {
+  guid?: string
+  name?: string
+  sku?: string
+  price?: string | number
+  quantity?: string | number
+  image?: string
+  is_enabled?: boolean
 }
 
 type ProductListResponse = {
@@ -131,7 +142,7 @@ type ProductListResponse = {
   limit?: number
   total?: number
 }
-type ApiProduct = Product & { guid: string }
+type ApiProduct = Product & { guid: string; variantCount: number }
 type CategoryOption = { id: string; name: string }
 type CategoryListResponse = {
   categories?: Array<{ guid: string; name?: string }>
@@ -143,7 +154,22 @@ function productNumericId(guid: string) {
   return Number(numeric) || Date.now()
 }
 
+function parseVariantOptions(value: ProductRow['variant_options']): VariantOptionRow[] {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
 function mapProduct(row: ProductRow): ApiProduct {
+  const variantOptions = parseVariantOptions(row.variant_options)
+  const variantCount = Number(row.variant_count) || variantOptions.length
   return {
     guid: row.guid,
     id: productNumericId(row.guid),
@@ -156,13 +182,23 @@ function mapProduct(row: ProductRow): ApiProduct {
     location: row.location_name || row.locations_id || '',
     description: row.description || '',
     specifications: [],
-    price: 0,
+    price: Number(variantOptions[0]?.price) || 0,
     image: row.images?.[0] || '',
     images: row.images || [],
     status: row.is_active === false ? 'inactive' : 'active',
-    hasVariants: false,
+    hasVariants: variantCount > 0,
+    variantCount,
     attributes: [],
-    variants: [],
+    variants: variantOptions.map((option) => ({
+      key: option.name || '',
+      attributes: {},
+      sku: option.sku || '',
+      brandName: row.brand_name || '',
+      price: String(option.price || 0),
+      quantity: String(option.quantity || 0),
+      image: option.image || '',
+      selected: option.is_enabled !== false,
+    })),
     createdAt: row.created_at || '',
   }
 }
@@ -401,7 +437,7 @@ export default function ProductsPage() {
                           <span className="text-[13px] font-semibold text-foreground whitespace-nowrap">{p.name}</span>
                           {p.hasVariants && (
                             <span className="text-[11px] font-semibold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-md self-start whitespace-nowrap">
-                              {p.variants.length} variants
+                              {p.variantCount} variants
                             </span>
                           )}
                         </div>
