@@ -28,6 +28,21 @@ function uploadFormat(file: File) {
   return formats[mime] || formats[ext] || 'PNG'
 }
 
+function isHeicFile(file: File) {
+  const mime = file.type.toLowerCase()
+  const ext = file.name.split('.').pop()?.toLowerCase() || ''
+  return mime === 'image/heic' || mime === 'image/heif' || ext === 'heic' || ext === 'heif'
+}
+
+async function normalizeUploadFile(file: File) {
+  if (!isHeicFile(file)) return file
+  const { default: heic2any } = await import('heic2any')
+  const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 })
+  const blob = Array.isArray(converted) ? converted[0] : converted
+  const baseName = file.name.replace(/\.(heic|heif)$/i, '') || `image-${Date.now()}`
+  return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' })
+}
+
 export function buildCdnUrl(link: string) {
   const trimmed = link.trim()
   if (!trimmed) return ''
@@ -39,10 +54,11 @@ export async function uploadProductImage(file: File) {
   const token = getAccessToken()
   if (!token) throw new Error('Login required before uploading images')
 
+  const uploadFile = await normalizeUploadFile(file)
   const formData = new FormData()
-  formData.append('file', file)
+  formData.append('file', uploadFile)
 
-  const res = await fetch(`${FILES_URL}/folder_upload?folder_name=media&format=${encodeURIComponent(uploadFormat(file))}`, {
+  const res = await fetch(`${FILES_URL}/folder_upload?folder_name=media&format=${encodeURIComponent(uploadFormat(uploadFile))}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
