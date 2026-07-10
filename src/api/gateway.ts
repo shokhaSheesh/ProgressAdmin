@@ -294,4 +294,11 @@ export const methods = {
     update: 'update_order',
     delete: 'delete_order',
   },
+  users: {
+    create: 'create_user',
+    list: 'list_users',
+    get: 'get_user',
+    update: 'update_user',
+    delete: 'delete_user',
+  },
 } as const

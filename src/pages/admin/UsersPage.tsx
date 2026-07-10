@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { callGateway, gatewayList, methods } from '../../api/gateway'
+import { formatDate } from '../../api/adminCrud'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type Status = 'active' | 'inactive'
 
 export interface Mechanic {
-  id: number; name: string; avatar: string; phone: string
-  region: string; balance: number; status: Status; createdAt: string
+  id: string | number; name: string; avatar: string; phone: string
+  region: string; regionId?: string; balance: number; status: Status; createdAt: string
 }
 
 export interface Seller {
@@ -17,6 +19,24 @@ export interface Seller {
 
 interface OrderItem { name: string; qty: number; price: string }
 interface Order { ref: string; date: string; shopName: string; sellerName: string; items: OrderItem[]; bonus: number }
+type ApiUserRow = {
+  guid: string
+  full_name?: string
+  phone?: string
+  login?: string
+  balance?: string[] | number[] | string | number | null
+  regions_id?: string
+  region_name?: string
+  is_active?: boolean
+  created_at?: string
+}
+type UsersResponse = {
+  users?: ApiUserRow[]
+  data?: ApiUserRow[]
+  total?: number
+}
+type RegionRow = { guid: string; name?: string }
+type RegionsResponse = { regions?: RegionRow[]; data?: RegionRow[] }
 
 // ─── Mock data — Mechanics ───────────────────────────────────────────────────
 
@@ -35,7 +55,7 @@ export const mechanics: Mechanic[] = [
   { id: 12, name: 'Sardor Pulatov',   avatar: 'SP', phone: '+998 91 234 11 22', region: 'Samarkand', balance: 0,      status: 'inactive', createdAt: 'Jun 10, 2026' },
 ]
 
-const recentOrders: Record<number, Order[]> = {
+const recentOrders: Record<string, Order[]> = {
   1: [
     { ref: 'ORD-2606-A12', date: 'Jun 20, 2026 · 14:32', shopName: 'AutoZone Tashkent', sellerName: 'Bekzod Saidov', items: [{ name: 'Oil Filter', qty: 2, price: '45 000' }, { name: 'Engine Belt', qty: 1, price: '120 000' }], bonus: 6300 },
     { ref: 'ORD-2606-A08', date: 'Jun 18, 2026 · 09:15', shopName: 'CarParts Express',  sellerName: 'Jasur Tursunov', items: [{ name: 'Brake Pads', qty: 4, price: '85 000' }], bonus: 10200 },
@@ -77,6 +97,30 @@ const avatarColors = ['bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-ambe
 
 function formatBalance(n: number) {
   return n === 0 ? '0' : n.toLocaleString('ru-RU').replace(/,/g, ' ')
+}
+
+function initials(name: string) {
+  return name.split(' ').filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase() || 'U'
+}
+
+function parseBalance(value: ApiUserRow['balance']) {
+  if (Array.isArray(value)) return Number(value[0]) || 0
+  return Number(value) || 0
+}
+
+function mapUser(row: ApiUserRow): Mechanic {
+  const name = row.full_name || row.login || row.phone || 'Unnamed user'
+  return {
+    id: row.guid,
+    name,
+    avatar: initials(name),
+    phone: row.phone || '',
+    region: row.region_name || '',
+    regionId: row.regions_id,
+    balance: parseBalance(row.balance),
+    status: row.is_active === false ? 'inactive' : 'active',
+    createdAt: formatDate(row.created_at),
+  }
 }
 
 const statusConfig: Record<Status, { label: string; bg: string; text: string }> = {
@@ -251,11 +295,12 @@ function MechanicModal({ mechanic, idx, onClose, onEdit, onDelete }: {
 
 interface MechanicFormState { name: string; phone: string; region: string; status: Status }
 
-function MechanicFormModal({ mechanic, onClose, onSave }: { mechanic: Mechanic | null; onClose: () => void; onSave: (d: MechanicFormState) => void }) {
+function MechanicFormModal({ mechanic, regions, onClose, onSave }: { mechanic: Mechanic | null; regions: string[]; onClose: () => void; onSave: (d: MechanicFormState) => void }) {
   const isEdit = mechanic !== null
+  const regionList = regions.length > 0 ? regions : REGIONS
   const [form, setForm] = useState<MechanicFormState>({
     name: mechanic?.name ?? '', phone: mechanic?.phone ?? '',
-    region: mechanic?.region ?? REGIONS[0], status: mechanic?.status ?? 'active',
+    region: mechanic?.region || regionList[0], status: mechanic?.status ?? 'active',
   })
   const [regionOpen, setRegionOpen] = useState(false)
   const regionRef = useRef<HTMLDivElement>(null)
@@ -307,7 +352,7 @@ function MechanicFormModal({ mechanic, onClose, onSave }: { mechanic: Mechanic |
                 </button>
                 {regionOpen && (
                   <div className="absolute bottom-full mb-1.5 left-0 right-0 bg-card rounded-xl border border-black/[0.08] overflow-hidden z-10 max-h-48 overflow-y-auto" style={{ boxShadow: '0 -8px 24px rgba(0,0,0,0.12)' }}>
-                    {REGIONS.map((r) => (
+                    {regionList.map((r) => (
                       <button key={r} type="button" onClick={() => { set('region')(r); setRegionOpen(false) }} className={['w-full text-left px-4 py-2.5 text-[13px] font-medium transition-colors', form.region === r ? 'bg-primary/10 text-primary font-semibold' : 'text-foreground hover:bg-[#F4F5F7]'].join(' ')}>{r}</button>
                     ))}
                   </div>
@@ -542,19 +587,85 @@ export default function UsersPage() {
   const [mSize, setMSize]     = useState(20)
   const [mSearch, setMSearch] = useState('')
   const [mFilter, setMFilter] = useState<StatusFilter>('all')
+  const [mRows, setMRows] = useState<Mechanic[]>([])
+  const [mListTotal, setMListTotal] = useState(0)
+  const [mStatTotal, setMStatTotal] = useState(0)
+  const [mActive, setMActive] = useState(0)
+  const [mInactive, setMInactive] = useState(0)
+  const [regions, setRegions] = useState<RegionRow[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  // Mechanic derived
-  const mTotal    = mechanics.length
-  const mActive   = mechanics.filter((m) => m.status === 'active').length
-  const mFiltered = mechanics.filter((m) => {
-    const q = mSearch.trim().toLowerCase()
-    return (mFilter === 'all' || m.status === mFilter) && (!q || m.name.toLowerCase().includes(q) || m.phone.includes(q) || m.region.toLowerCase().includes(q))
-  })
-  const mPageCount = Math.ceil(mFiltered.length / mSize)
-  const mPaginated = mFiltered.slice((mPage - 1) * mSize, mPage * mSize)
+  const regionNames = regions.map(region => region.name || '').filter(Boolean)
+  const regionOptions = regionNames.length > 0 ? regionNames : REGIONS
+
+  function regionIdByName(name: string) {
+    return regions.find(region => region.name === name)?.guid
+  }
+
+  const loadUsers = () => {
+    setLoading(true)
+    setError('')
+    const filter: Record<string, unknown> = {}
+    if (mFilter !== 'all') filter.status = mFilter
+    gatewayList<UsersResponse>(methods.users.list, {
+      page: mPage,
+      limit: mSize,
+      search: mSearch.trim() || undefined,
+      filter,
+      sort: { created_at: -1 },
+    })
+      .then(response => {
+        const rows = response.users || response.data || []
+        setMRows(rows.map(mapUser))
+        setMListTotal(response.total ?? rows.length)
+      })
+      .catch(err => setError(err instanceof Error ? err.message : 'Failed to load users'))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadUsers()
+  }, [mPage, mSize, mSearch, mFilter])
+
+  useEffect(() => {
+    gatewayList<RegionsResponse>(methods.regions.list, { page: 1, limit: 500, sort: { created_at: -1 } })
+      .then(response => setRegions(response.regions || response.data || []))
+      .catch(() => setRegions([]))
+    Promise.all([
+      gatewayList<UsersResponse>(methods.users.list, { page: 1, limit: 1 }),
+      gatewayList<UsersResponse>(methods.users.list, { page: 1, limit: 1, filter: { status: 'active' } }),
+      gatewayList<UsersResponse>(methods.users.list, { page: 1, limit: 1, filter: { status: 'inactive' } }),
+    ]).then(([total, active, inactive]) => {
+      setMStatTotal(total.total ?? 0)
+      setMActive(active.total ?? 0)
+      setMInactive(inactive.total ?? 0)
+    }).catch(() => {})
+  }, [])
+
+  const mPageCount = Math.ceil(mListTotal / mSize)
+  const mPaginated = mRows
 
   const handleMSearch = (v: string) => { setMSearch(v); setMPage(1) }
   const handleMFilter = (v: StatusFilter) => { setMFilter(v); setMPage(1) }
+  const saveMechanic = async (mechanic: Mechanic | null, form: MechanicFormState) => {
+    const payload = {
+      full_name: form.name,
+      phone: form.phone,
+      login: form.phone,
+      regions_id: regionIdByName(form.region) || mechanic?.regionId,
+      balance: [String(mechanic?.balance ?? 0)],
+      is_active: form.status === 'active',
+    }
+    await callGateway(mechanic ? methods.users.update : methods.users.create, mechanic ? { ...payload, guid: mechanic.id } : payload)
+    setMModal(null)
+    loadUsers()
+  }
+  const deleteMechanic = async (mechanic: Mechanic) => {
+    await callGateway(methods.users.delete, { guid: mechanic.id })
+    setMModal(null)
+    loadUsers()
+  }
 
   return (
     <div className="p-6 flex flex-col gap-6">
@@ -568,9 +679,9 @@ export default function UsersPage() {
       <>
 
           <div className="grid grid-cols-3 gap-4">
-            <StatCard label="Total"    value={mTotal}           iconBg="bg-primary"     icon={<IconUsersAll />}    />
+            <StatCard label="Total"    value={mStatTotal}       iconBg="bg-primary"     icon={<IconUsersAll />}    />
             <StatCard label="Active"   value={mActive}          iconBg="bg-emerald-500" icon={<IconUserActive />}  />
-            <StatCard label="Inactive" value={mTotal - mActive} iconBg="bg-red-500"     icon={<IconUserInactive />} />
+            <StatCard label="Inactive" value={mInactive}        iconBg="bg-red-500"     icon={<IconUserInactive />} />
           </div>
 
           <div className="bg-card rounded-2xl border border-black/[0.06] overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
@@ -589,10 +700,13 @@ export default function UsersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {mPaginated.length === 0
+                  {loading ? (
+                    <tr><td colSpan={8} className="px-5 py-16 text-center text-[13px] font-semibold text-muted-foreground">Loading users...</td></tr>
+                  ) : error ? (
+                    <tr><td colSpan={8} className="px-5 py-16 text-center text-[13px] font-semibold text-red-500">{error}</td></tr>
+                  ) : mPaginated.length === 0
                     ? <EmptySearch onClear={() => { handleMSearch(''); handleMFilter('all') }} />
-                    : mPaginated.map((m) => {
-                        const idx      = mFiltered.indexOf(m)
+                    : mPaginated.map((m, idx) => {
                         const sc       = statusConfig[m.status]
                         const avatarBg = avatarColors[idx % avatarColors.length]
                         return (
@@ -625,7 +739,7 @@ export default function UsersPage() {
                 </tbody>
               </table>
             </div>
-            <PaginationFooter page={mPage} pageCount={mPageCount} pageSize={mSize} total={mFiltered.length} onPage={setMPage} onPageSize={(s) => { setMSize(s); setMPage(1) }} />
+            <PaginationFooter page={mPage} pageCount={mPageCount} pageSize={mSize} total={mListTotal} onPage={setMPage} onPageSize={(s) => { setMSize(s); setMPage(1) }} />
           </div>
       </>
 
@@ -635,9 +749,9 @@ export default function UsersPage() {
           onEdit={() => setMModal({ kind: 'edit', mechanic: mModal.mechanic })}
           onDelete={() => setMModal({ kind: 'delete', mechanic: mModal.mechanic })} />
       )}
-      {mModal?.kind === 'edit'   && <MechanicFormModal mechanic={mModal.mechanic} onClose={() => setMModal(null)} onSave={() => setMModal(null)} />}
-      {mModal?.kind === 'create' && <MechanicFormModal mechanic={null}            onClose={() => setMModal(null)} onSave={() => setMModal(null)} />}
-      {mModal?.kind === 'delete' && <DeleteModal name={mModal.mechanic.name}      onClose={() => setMModal(null)} onConfirm={() => setMModal(null)} />}
+      {mModal?.kind === 'edit'   && <MechanicFormModal mechanic={mModal.mechanic} regions={regionOptions} onClose={() => setMModal(null)} onSave={(form) => saveMechanic(mModal.mechanic, form)} />}
+      {mModal?.kind === 'create' && <MechanicFormModal mechanic={null} regions={regionOptions} onClose={() => setMModal(null)} onSave={(form) => saveMechanic(null, form)} />}
+      {mModal?.kind === 'delete' && <DeleteModal name={mModal.mechanic.name}      onClose={() => setMModal(null)} onConfirm={() => deleteMechanic(mModal.mechanic)} />}
 
     </div>
   )
