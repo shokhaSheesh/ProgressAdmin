@@ -18,6 +18,7 @@ export interface Variant {
   brandName: string
   price: string
   quantity: string
+  unit_of_measurement?: string
   image: string
   selected: boolean
 }
@@ -95,7 +96,7 @@ type SeedProduct = {
 }
 
 const fillVariant = (v: SeedVariant): Variant => ({
-  brandName: '', image: '', selected: true, ...v,
+  brandName: '', image: '', selected: true, unit_of_measurement: '', ...v,
 })
 
 const fillProduct = (p: SeedProduct): Product => ({
@@ -258,7 +259,7 @@ function makeVariant(key: string, attributes: Record<string, string>, base: Vari
     key, attributes,
     sku: base.sku ? (suffix ? `${base.sku}-${suffix}` : base.sku) : suffix,
     brandName: base.brandName,
-    price: base.price || '0', quantity: '0', image, selected: true,
+    price: base.price || '0', quantity: '0', unit_of_measurement: '', image, selected: true,
   }
 }
 

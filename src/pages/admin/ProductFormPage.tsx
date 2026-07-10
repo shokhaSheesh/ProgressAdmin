@@ -52,6 +52,7 @@ type ProductDetailResponse = {
         sku?: string
         price?: string[] | string
         quantity?: number | string
+        unit_of_measurement?: string
         is_enabled?: boolean
       }>
     }>
@@ -67,6 +68,7 @@ type ProductDetailResponse = {
       sku?: string
       price?: string[] | string
       quantity?: number | string
+      unit_of_measurement?: string
       is_enabled?: boolean
     }>
   }>
@@ -119,6 +121,7 @@ function productVariantsToForm(variants: NonNullable<ProductDetailResponse['prod
         brandName: '',
         price: firstPrice(option.price),
         quantity: String(option.quantity ?? ''),
+        unit_of_measurement: option.unit_of_measurement || '',
         image: option.image || '',
         selected: option.is_enabled !== false,
       })
@@ -257,6 +260,7 @@ function Card({ title, children, right }: { title?: string; children: React.Reac
 const variantCols = [
   { key: 'price' as const,    label: 'Price',    w: 'w-[140px]', type: 'number', ph: '0' },
   { key: 'quantity' as const, label: 'Quantity', w: 'w-[120px]', type: 'number', ph: '0' },
+  { key: 'unit_of_measurement' as const, label: 'Unit', w: 'w-[120px]', type: 'text', ph: 'pcs' },
   { key: 'sku' as const,      label: 'SKU',      w: 'w-[180px]', type: 'text',   ph: 'Auto', mono: true },
 ]
 
@@ -444,6 +448,7 @@ export default function ProductFormPage() {
                 sku: matching?.sku || '',
                 price: matching?.price ? [matching.price] : [],
                 quantity: Number(matching?.quantity || 0),
+                unit_of_measurement: matching?.unit_of_measurement || '',
                 is_enabled: Boolean(matching?.selected),
               }
             }),
