@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { callGateway, methods } from '../../api/gateway'
+import { formatDate, loadCrudRows, rowStatus, saveCrudRow } from '../../api/adminCrud'
+import type { ApiRow } from '../../api/adminCrud'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -7,7 +10,7 @@ type Status = 'active' | 'inactive'
 type RoleName = 'Super Admin' | 'Shop Manager' | 'Accountant' | 'Support'
 
 interface AdminUser {
-  id: number; name: string; avatar: string
+  id: string; name: string; avatar: string
   phone: string; login: string
   role: RoleName; status: Status; createdAt: string
 }
@@ -30,18 +33,25 @@ const statusConfig: Record<Status, { label: string; bg: string; text: string }> 
 
 const avatarColors = ['bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500', 'bg-pink-500', 'bg-cyan-500']
 
-const initialAdminUsers: AdminUser[] = [
-  { id: 1,  name: 'Jasur Nazarov',     avatar: 'JN', phone: '+998 90 100 11 22', login: 'jasur.n',    role: 'Super Admin',  status: 'active',   createdAt: 'Jan 3, 2026'  },
-  { id: 2,  name: 'Malika Yusupova',   avatar: 'MY', phone: '+998 91 200 22 33', login: 'malika.y',   role: 'Shop Manager', status: 'active',   createdAt: 'Jan 15, 2026' },
-  { id: 3,  name: 'Sherzod Tursunov',  avatar: 'ST', phone: '+998 93 300 33 44', login: 'sherzod.t',  role: 'Accountant',   status: 'active',   createdAt: 'Feb 2, 2026'  },
-  { id: 4,  name: 'Nargiza Karimova',  avatar: 'NK', phone: '+998 94 400 44 55', login: 'nargiza.k',  role: 'Support',      status: 'active',   createdAt: 'Feb 20, 2026' },
-  { id: 5,  name: 'Bobur Ismoilov',    avatar: 'BI', phone: '+998 97 500 55 66', login: 'bobur.i',    role: 'Shop Manager', status: 'inactive', createdAt: 'Mar 8, 2026'  },
-  { id: 6,  name: 'Dilrabo Xasanova',  avatar: 'DX', phone: '+998 90 600 66 77', login: 'dilrabo.x',  role: 'Accountant',   status: 'active',   createdAt: 'Mar 25, 2026' },
-  { id: 7,  name: 'Eldor Rakhimov',    avatar: 'ER', phone: '+998 91 700 77 88', login: 'eldor.r',    role: 'Support',      status: 'inactive', createdAt: 'Apr 11, 2026' },
-  { id: 8,  name: 'Kamola Mirzaeva',   avatar: 'KM', phone: '+998 93 800 88 99', login: 'kamola.m',   role: 'Shop Manager', status: 'active',   createdAt: 'Apr 28, 2026' },
-  { id: 9,  name: 'Otabek Sobirov',    avatar: 'OS', phone: '+998 94 900 99 00', login: 'otabek.s',   role: 'Support',      status: 'active',   createdAt: 'May 14, 2026' },
-  { id: 10, name: 'Zulfiya Nazarova',  avatar: 'ZN', phone: '+998 97 010 10 11', login: 'zulfiya.n',  role: 'Accountant',   status: 'active',   createdAt: 'Jun 1, 2026'  },
-]
+const DEFAULT_ADMIN_PASSWORD = '#ProgressAdmin123'
+
+function initials(value: string) {
+  return value.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || '#'
+}
+
+function mapAdminUser(row: ApiRow): AdminUser {
+  const name = String(row.full_name || row.login || row.phone || 'Admin User')
+  return {
+    id: row.guid,
+    name,
+    avatar: initials(name),
+    phone: String(row.phone || ''),
+    login: String(row.login || row.phone || ''),
+    role: 'Super Admin',
+    status: rowStatus(row),
+    createdAt: formatDate(String(row.created_at || '')),
+  }
+}
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
@@ -394,7 +404,11 @@ type ModalState =
   | null
 
 export default function AdminUsersPage() {
-  const [users, setUsers]         = useState<AdminUser[]>(initialAdminUsers)
+  const [users, setUsers]         = useState<AdminUser[]>([])
+  const [total, setTotal]         = useState(0)
+  const [loading, setLoading]     = useState(true)
+  const [saving, setSaving]       = useState(false)
+  const [error, setError]         = useState('')
   const [modal, setModal]         = useState<ModalState>(null)
   const [page, setPage]           = useState(1)
   const [pageSize, setPageSize]   = useState(20)
@@ -402,45 +416,74 @@ export default function AdminUsersPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [roleFilter, setRoleFilter]     = useState<RoleFilter>('all')
 
-  const filtered = users.filter((u) => {
-    const q = search.trim().toLowerCase()
-    return (
-      (statusFilter === 'all' || u.status === statusFilter) &&
-      (roleFilter === 'all' || u.role === roleFilter) &&
-      (!q || u.name.toLowerCase().includes(q) || u.phone.includes(q) || u.login.toLowerCase().includes(q))
-    )
-  })
-  const pageCount = Math.ceil(filtered.length / pageSize)
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const filtered = roleFilter === 'all' ? users : users.filter((u) => u.role === roleFilter)
+  const pageCount = Math.ceil(total / pageSize)
+  const paginated = filtered
+
+  async function loadAdminUsers() {
+    setLoading(true)
+    setError('')
+    try {
+      const filter: Record<string, unknown> = {}
+      if (statusFilter !== 'all') filter.status = statusFilter
+      const response = await loadCrudRows<ApiRow>(methods.adminUsers.list, 'users', page, pageSize, filter, search)
+      const rows = response.rows.map(mapAdminUser)
+      setUsers(rows)
+      setTotal(response.total)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load admin users')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { void loadAdminUsers() }, [page, pageSize, search, statusFilter])
 
   const handleSearch = (v: string) => { setSearch(v); setPage(1) }
   const handleStatus = (v: StatusFilter) => { setStatusFilter(v); setPage(1) }
   const handleRole   = (v: RoleFilter)   => { setRoleFilter(v);   setPage(1) }
 
-  const handleSave = (d: FormState) => {
-    if (modal?.kind === 'edit') {
-      setUsers((prev) => prev.map((u) => u.id === modal.user.id ? { ...u, ...d } : u))
-    } else {
-      const newUser: AdminUser = {
-        id: Date.now(), avatar: d.name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase(),
-        createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        ...d,
+  const handleSave = async (d: FormState) => {
+    setSaving(true)
+    setError('')
+    try {
+      const payload: Record<string, unknown> = {
+        full_name: d.name.trim(),
+        phone: d.phone.trim(),
+        login: d.login.trim(),
+        status: d.status,
       }
-      setUsers((prev) => [newUser, ...prev])
-    }
-    setModal(null)
-  }
-
-  const handleDelete = () => {
-    if (modal?.kind === 'delete') {
-      setUsers((prev) => prev.filter((u) => u.id !== modal.user.id))
+      if (d.password.trim()) payload.password = d.password.trim()
+      if (modal?.kind !== 'edit' && !payload.password) payload.password = DEFAULT_ADMIN_PASSWORD
+      await saveCrudRow(methods.adminUsers, modal?.kind === 'edit' ? modal.user.id : undefined, payload)
       setModal(null)
+      await loadAdminUsers()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save admin user')
+    } finally {
+      setSaving(false)
     }
   }
 
-  const total    = users.length
+  const handleDelete = async () => {
+    if (modal?.kind === 'delete') {
+      setSaving(true)
+      setError('')
+      try {
+        await callGateway(methods.adminUsers.delete, { guid: modal.user.id })
+        setModal(null)
+        await loadAdminUsers()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to delete admin user')
+      } finally {
+        setSaving(false)
+      }
+    }
+  }
+
+  const totalUsers = total
   const active   = users.filter((u) => u.status === 'active').length
-  const inactive = total - active
+  const inactive = totalUsers - active
 
   // Pagination range
   const delta = 2
@@ -458,7 +501,7 @@ export default function AdminUsersPage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-3 gap-4">
-        <StatCard label="Total" value={total} iconBg="bg-primary" icon={
+        <StatCard label="Total" value={totalUsers} iconBg="bg-primary" icon={
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
             <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
@@ -480,6 +523,9 @@ export default function AdminUsersPage() {
 
       {/* Table card */}
       <div className="bg-card rounded-2xl border border-black/[0.06] overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+        {error && (
+          <div className="px-5 py-3 text-[13px] font-semibold text-red-600 bg-red-50 border-b border-red-100">{error}</div>
+        )}
         {/* Toolbar */}
         <div className="px-5 py-3.5 border-b border-black/[0.06] flex items-center gap-3">
           <div className="relative flex-1">
@@ -516,7 +562,9 @@ export default function AdminUsersPage() {
               </tr>
             </thead>
             <tbody>
-              {paginated.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan={7} className="px-5 py-16 text-center text-[13px] font-semibold text-muted-foreground">Loading admin users...</td></tr>
+              ) : paginated.length === 0 ? (
                 <tr><td colSpan={7} className="px-5 py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <svg className="w-8 h-8 text-muted-foreground/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
@@ -571,7 +619,7 @@ export default function AdminUsersPage() {
         <div className="px-5 py-4 border-t border-black/[0.06] flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <span className="text-[12px] font-medium text-muted-foreground">
-              Showing {filtered.length === 0 ? 0 : Math.min((page - 1) * pageSize + 1, filtered.length)}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+              Showing {totalUsers === 0 ? 0 : Math.min((page - 1) * pageSize + 1, totalUsers)}–{Math.min(page * pageSize, totalUsers)} of {totalUsers}
             </span>
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-medium text-muted-foreground">Rows per page:</span>
@@ -601,9 +649,9 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Modals */}
-      {modal?.kind === 'edit'   && <FormModal user={modal.user} onClose={() => setModal(null)} onSave={handleSave} />}
-      {modal?.kind === 'create' && <FormModal user={null}       onClose={() => setModal(null)} onSave={handleSave} />}
-      {modal?.kind === 'delete' && <DeleteModal name={modal.user.name} onClose={() => setModal(null)} onConfirm={handleDelete} />}
+      {modal?.kind === 'edit'   && <FormModal user={modal.user} onClose={() => !saving && setModal(null)} onSave={handleSave} />}
+      {modal?.kind === 'create' && <FormModal user={null}       onClose={() => !saving && setModal(null)} onSave={handleSave} />}
+      {modal?.kind === 'delete' && <DeleteModal name={modal.user.name} onClose={() => !saving && setModal(null)} onConfirm={handleDelete} />}
     </div>
   )
 }

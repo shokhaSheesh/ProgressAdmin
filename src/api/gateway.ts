@@ -301,4 +301,11 @@ export const methods = {
     update: 'update_user',
     delete: 'delete_user',
   },
+  adminUsers: {
+    create: 'create_admin_user',
+    list: 'list_admin_users',
+    get: 'get_admin_user',
+    update: 'update_admin_user',
+    delete: 'delete_admin_user',
+  },
 } as const
