@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { callGateway, gatewayList, methods } from '../../api/gateway'
+import { maybeUploadImage, rowStatus } from '../../api/adminCrud'
 
 // ─── Types (exported so BannersPage can import them) ──────────────────────────
 
@@ -7,51 +9,73 @@ export type BannerStatus = 'active' | 'inactive'
 export type BannerAssignTarget = 'categories' | 'products'
 
 export interface BannerData {
-  id: number
+  id: string
   title: string
   image: string
-  assignment: { target: BannerAssignTarget; ids: number[] }
+  assignment: { target: BannerAssignTarget; ids: string[] }
   status: BannerStatus
   createdAt: string
 }
 
-// ─── Shared in-memory store ───────────────────────────────────────────────────
+type ApiAssignee = { assignee_name?: string; assignee_id?: string }
+type ApiBannerRow = {
+  guid: string
+  image?: string
+  title_en?: string
+  title_ru?: string
+  title_uz?: string
+  is_active?: boolean
+  assignees?: ApiAssignee[] | string | null
+}
+type ApiCategoryRow = { guid: string; name?: string; name_en?: string; name_ru?: string; name_uz?: string }
+type ApiProductRow = {
+  guid: string
+  name?: string
+  sku?: string
+  variant_options?: Array<{ guid?: string; name?: string; sku?: string }> | string | null
+}
 
-export const bannerStore: BannerData[] = [
-  { id: 1, title: 'Summer Engine Sale',       image: '', assignment: { target: 'categories', ids: [1, 5] },                       status: 'active',   createdAt: 'Jun 10, 2026' },
-  { id: 2, title: 'Brake & Suspension Deals', image: '', assignment: { target: 'categories', ids: [2] },                          status: 'active',   createdAt: 'Jun 12, 2026' },
-  { id: 3, title: 'NGK Spark Plugs Promo',    image: '', assignment: { target: 'products',   ids: [10101, 10102] },                status: 'active',   createdAt: 'Jun 14, 2026' },
-  { id: 4, title: 'Filter Week Campaign',     image: '', assignment: { target: 'categories', ids: [4] },                          status: 'inactive', createdAt: 'Jun 15, 2026' },
-  { id: 5, title: 'Tyres Flash Sale',         image: '', assignment: { target: 'categories', ids: [8] },                          status: 'active',   createdAt: 'Jun 18, 2026' },
-  { id: 6, title: 'Bilstein Shock Deals',     image: '', assignment: { target: 'products',   ids: [10601, 10602, 10603, 10604] },  status: 'inactive', createdAt: 'Jun 20, 2026' },
-]
+interface LookupCategory { id: string; name: string }
+interface ProductVariation { id: string; name: string }
+interface LookupProduct { id: string; name: string; variations: ProductVariation[] }
 
-// ─── Mock lookup data ─────────────────────────────────────────────────────────
+function parseAssignees(value: ApiBannerRow['assignees']): ApiAssignee[] {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
 
-const MOCK_CATEGORIES = [
-  { id: 1, name: 'Engine Parts' },
-  { id: 2, name: 'Brakes & Suspension' },
-  { id: 3, name: 'Electrical' },
-  { id: 4, name: 'Filters' },
-  { id: 5, name: 'Transmission' },
-  { id: 6, name: 'Body & Exterior' },
-  { id: 7, name: 'Interior' },
-  { id: 8, name: 'Tyres & Wheels' },
-]
+function parseVariantOptions(value: ApiProductRow['variant_options']): Array<{ guid?: string; name?: string; sku?: string }> {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
 
-interface ProductVariation { id: number; name: string }
-interface MockProduct { id: number; name: string; variations: ProductVariation[] }
-
-const MOCK_PRODUCTS: MockProduct[] = [
-  { id: 101, name: 'NGK Spark Plug BKR6E',          variations: [{ id: 10101, name: 'Single Pack' }, { id: 10102, name: 'Box of 4' }, { id: 10103, name: 'Box of 8' }] },
-  { id: 102, name: 'Bosch Oil Filter 0451103316',   variations: [{ id: 10201, name: 'Standard' }, { id: 10202, name: 'Long Life Edition' }] },
-  { id: 103, name: 'Brembo Front Brake Pad P06007', variations: [{ id: 10301, name: 'Standard' }, { id: 10302, name: 'Sport' }, { id: 10303, name: 'Carbon Ceramic' }] },
-  { id: 104, name: 'Mann Air Filter C27006',        variations: [{ id: 10401, name: 'Standard' }, { id: 10402, name: 'Heavy Duty' }] },
-  { id: 105, name: 'Gates Timing Belt K025605XS',   variations: [{ id: 10501, name: 'Belt Only' }, { id: 10502, name: 'Belt + Tensioner Kit' }, { id: 10503, name: 'Full Kit with Water Pump' }] },
-  { id: 106, name: 'Bilstein Shock Absorber B4',    variations: [{ id: 10601, name: 'Front Left' }, { id: 10602, name: 'Front Right' }, { id: 10603, name: 'Rear Left' }, { id: 10604, name: 'Rear Right' }] },
-  { id: 107, name: 'Hella Headlight Bulb H7',       variations: [{ id: 10701, name: 'Standard 12V 55W' }, { id: 10702, name: 'Long Life 12V 55W' }, { id: 10703, name: 'High Beam 12V 65W' }] },
-  { id: 108, name: 'Febi Wheel Bearing Kit',        variations: [{ id: 10801, name: 'Front Axle' }, { id: 10802, name: 'Rear Axle' }] },
-]
+function bannerToForm(row: ApiBannerRow): FormState {
+  const assignees = parseAssignees(row.assignees)
+  const target = assignees[0]?.assignee_name === 'products' ? 'products' : 'categories'
+  return {
+    title: row.title_en || row.title_ru || row.title_uz || '',
+    image: row.image || '',
+    assignTarget: target,
+    assignIds: assignees.map(item => String(item.assignee_id || '')).filter(Boolean),
+    status: rowStatus(row) as BannerStatus,
+  }
+}
 
 // ─── Checkbox ─────────────────────────────────────────────────────────────────
 
@@ -92,7 +116,7 @@ type FormState = {
   title: string
   image: string
   assignTarget: BannerAssignTarget
-  assignIds: number[]
+  assignIds: string[]
   status: BannerStatus
 }
 
@@ -106,18 +130,61 @@ export default function BannerFormPage() {
   const navigate = useNavigate()
   const { id }   = useParams<{ id: string }>()
   const isEdit   = !!id
-  const existing = isEdit ? bannerStore.find((b) => b.id === Number(id)) : undefined
 
-  const [form, setForm]                     = useState<FormState>(
-    existing
-      ? { title: existing.title, image: existing.image, assignTarget: existing.assignment.target, assignIds: [...existing.assignment.ids], status: existing.status }
-      : emptyForm()
-  )
+  const [form, setForm]                     = useState<FormState>(emptyForm())
+  const [categories, setCategories]         = useState<LookupCategory[]>([])
+  const [products, setProducts]             = useState<LookupProduct[]>([])
+  const [loading, setLoading]               = useState(isEdit)
+  const [saving, setSaving]                 = useState(false)
+  const [loadError, setLoadError]           = useState('')
   const [errors, setErrors]                 = useState<Partial<Record<string, string>>>({})
-  const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set())
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set())
   const [assignSearch, setAssignSearch]     = useState('')
   const [dragOver, setDragOver]             = useState(false)
   const fileInputRef                        = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([
+      gatewayList<{ categories?: ApiCategoryRow[]; data?: ApiCategoryRow[] }>(methods.categories.list, { page: 1, limit: 500, sort: { created_at: -1 } }),
+      gatewayList<{ products?: ApiProductRow[]; data?: ApiProductRow[] }>(methods.products.list, { page: 1, limit: 500, sort: { created_at: -1 } }),
+    ]).then(([categoryResponse, productResponse]) => {
+      if (cancelled) return
+      const categoryRows = categoryResponse.categories || categoryResponse.data || []
+      setCategories(categoryRows.map(row => ({ id: row.guid, name: row.name_en || row.name_ru || row.name_uz || row.name || row.guid })))
+      const productRows = productResponse.products || productResponse.data || []
+      setProducts(productRows.map(row => {
+        const options = parseVariantOptions(row.variant_options)
+        return {
+          id: row.guid,
+          name: row.name || row.sku || row.guid,
+          variations: options.length > 0
+            ? options.map(option => ({ id: String(option.guid || ''), name: option.name || option.sku || String(option.guid || '') })).filter(option => option.id)
+            : [{ id: row.guid, name: row.name || row.sku || row.guid }],
+        }
+      }))
+    }).catch(e => {
+      if (!cancelled) setLoadError(e instanceof Error ? e.message : 'Failed to load banner lookups')
+    })
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    if (!isEdit || !id) return
+    let cancelled = false
+    setLoading(true)
+    callGateway<{ banner?: ApiBannerRow }>(methods.banners.get, { guid: id })
+      .then(response => {
+        if (!cancelled && response.banner) setForm(bannerToForm(response.banner))
+      })
+      .catch(e => {
+        if (!cancelled) setLoadError(e instanceof Error ? e.message : 'Failed to load banner')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [id, isEdit])
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -158,7 +225,7 @@ export default function BannerFormPage() {
   }
 
   // ── Category selection ──
-  function toggleCategory(catId: number) {
+  function toggleCategory(catId: string) {
     setForm((f) => ({
       ...f,
       assignIds: f.assignIds.includes(catId)
@@ -169,10 +236,10 @@ export default function BannerFormPage() {
   }
 
   // ── Product selection ──
-  function isProductFull(p: MockProduct) { return p.variations.every((v) => form.assignIds.includes(v.id)) }
-  function isProductPartial(p: MockProduct) { return p.variations.some((v) => form.assignIds.includes(v.id)) && !isProductFull(p) }
+  function isProductFull(p: LookupProduct) { return p.variations.every((v) => form.assignIds.includes(v.id)) }
+  function isProductPartial(p: LookupProduct) { return p.variations.some((v) => form.assignIds.includes(v.id)) && !isProductFull(p) }
 
-  function toggleProduct(p: MockProduct) {
+  function toggleProduct(p: LookupProduct) {
     const varIds = p.variations.map((v) => v.id)
     if (isProductFull(p)) {
       setForm((f) => ({ ...f, assignIds: f.assignIds.filter((id) => !varIds.includes(id)) }))
@@ -182,7 +249,7 @@ export default function BannerFormPage() {
     setErrors((e) => ({ ...e, assign: undefined }))
   }
 
-  function toggleVariation(varId: number) {
+  function toggleVariation(varId: string) {
     setForm((f) => ({
       ...f,
       assignIds: f.assignIds.includes(varId)
@@ -192,7 +259,7 @@ export default function BannerFormPage() {
     setErrors((e) => ({ ...e, assign: undefined }))
   }
 
-  function toggleProductExpand(pid: number) {
+  function toggleProductExpand(pid: string) {
     setExpandedProducts((prev) => {
       const next = new Set(prev)
       if (next.has(pid)) next.delete(pid)
@@ -211,21 +278,30 @@ export default function BannerFormPage() {
     return true
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!validate()) return
-    const payload = {
-      title: form.title.trim(),
-      image: form.image,
-      assignment: { target: form.assignTarget, ids: form.assignIds },
-      status: form.status,
+    setSaving(true)
+    setLoadError('')
+    try {
+      const image = await maybeUploadImage(form.image)
+      const payload = {
+        title_en: form.title.trim(),
+        title_ru: form.title.trim(),
+        title_uz: form.title.trim(),
+        image,
+        status: form.status,
+        assignees: form.assignIds.map(assigneeId => ({
+          assignee_name: form.assignTarget,
+          assignee_id: assigneeId,
+        })),
+      }
+      await callGateway(isEdit && id ? methods.banners.update : methods.banners.create, isEdit && id ? { ...payload, guid: id } : payload)
+      navigate('/admin/banners')
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : 'Failed to save banner')
+    } finally {
+      setSaving(false)
     }
-    if (isEdit && existing) {
-      const idx = bannerStore.findIndex((b) => b.id === existing.id)
-      if (idx >= 0) bannerStore[idx] = { ...bannerStore[idx], ...payload }
-    } else {
-      bannerStore.unshift({ id: Date.now(), createdAt: 'Jun 29, 2026', ...payload })
-    }
-    navigate('/admin/banners')
   }
 
   const inputCls = (err?: string) =>
@@ -233,16 +309,22 @@ export default function BannerFormPage() {
       err ? 'border-red-400' : 'border-transparent focus:border-blue-500 focus:bg-white'].join(' ')
 
   const q = assignSearch.trim().toLowerCase()
-  const filteredCategories = MOCK_CATEGORIES.filter((c) => !q || c.name.toLowerCase().includes(q))
-  const filteredProducts   = MOCK_PRODUCTS.filter((p) =>
+  const filteredCategories = categories.filter((c) => !q || c.name.toLowerCase().includes(q))
+  const filteredProducts   = products.filter((p) =>
     !q || p.name.toLowerCase().includes(q) || p.variations.some((v) => v.name.toLowerCase().includes(q))
   )
   const selectedCount = form.assignTarget === 'categories'
     ? form.assignIds.length
-    : MOCK_PRODUCTS.filter((p) => p.variations.some((v) => form.assignIds.includes(v.id))).length
+    : products.filter((p) => p.variations.some((v) => form.assignIds.includes(v.id))).length
 
   return (
     <div className="p-6 flex flex-col gap-6 max-w-5xl">
+      {loadError && (
+        <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-[13px] font-semibold text-red-600">{loadError}</div>
+      )}
+      {loading && (
+        <div className="rounded-xl bg-card border border-black/[0.06] px-4 py-3 text-[13px] font-semibold text-muted-foreground">Loading banner...</div>
+      )}
 
       {/* Header */}
       <div className="flex items-center gap-3">
@@ -536,9 +618,10 @@ export default function BannerFormPage() {
             <button
               type="button"
               onClick={handleSubmit}
+              disabled={saving || loading}
               className="flex-1 rounded-xl py-2.5 text-[13px] font-bold bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-colors"
             >
-              {isEdit ? 'Save Changes' : 'Create Banner'}
+              {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Banner'}
             </button>
           </div>
         </div>

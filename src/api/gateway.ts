@@ -308,4 +308,11 @@ export const methods = {
     update: 'update_admin_user',
     delete: 'delete_admin_user',
   },
+  banners: {
+    create: 'create_banner',
+    list: 'list_banners',
+    get: 'get_banner',
+    update: 'update_banner',
+    delete: 'delete_banner',
+  },
 } as const

@@ -1,32 +1,64 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { bannerStore } from './BannerFormPage'
+import { callGateway, gatewayList, methods } from '../../api/gateway'
+import { formatDate, rowStatus } from '../../api/adminCrud'
 import type { BannerData } from './BannerFormPage'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+type ApiBannerRow = {
+  guid: string
+  image?: string
+  title_en?: string
+  title_ru?: string
+  title_uz?: string
+  is_active?: boolean
+  created_at?: string
+  assignees?: Array<{ assignee_name?: string; assignee_id?: string }> | string | null
+}
+type BannersResponse = { banners?: ApiBannerRow[]; data?: ApiBannerRow[]; total?: number }
+
+function parseAssignees(value: ApiBannerRow['assignees']) {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+function mapBanner(row: ApiBannerRow): BannerData {
+  const assignees = parseAssignees(row.assignees)
+  const target = assignees[0]?.assignee_name === 'products' ? 'products' : 'categories'
+  return {
+    id: row.guid,
+    title: row.title_en || row.title_ru || row.title_uz || '',
+    image: row.image || '',
+    assignment: { target, ids: assignees.map((item) => String(item.assignee_id || '')).filter(Boolean) },
+    status: rowStatus(row) as BannerData['status'],
+    createdAt: formatDate(row.created_at),
+  }
+}
 
 function assignmentLabel(a: BannerData['assignment']): string {
   if (a.target === 'categories') {
     const n = a.ids.length
     return n === 1 ? '1 Category' : `${n} Categories`
   }
-  const MOCK_PRODUCTS_IDS = [
-    { id: 101, varIds: [10101, 10102, 10103] },
-    { id: 102, varIds: [10201, 10202] },
-    { id: 103, varIds: [10301, 10302, 10303] },
-    { id: 104, varIds: [10401, 10402] },
-    { id: 105, varIds: [10501, 10502, 10503] },
-    { id: 106, varIds: [10601, 10602, 10603, 10604] },
-    { id: 107, varIds: [10701, 10702, 10703] },
-    { id: 108, varIds: [10801, 10802] },
-  ]
-  const count = MOCK_PRODUCTS_IDS.filter((p) => p.varIds.some((v) => a.ids.includes(v))).length
-  return count === 1 ? '1 Product' : `${count} Products`
+  const n = a.ids.length
+  return n === 1 ? '1 Product Option' : `${n} Product Options`
 }
 
 const PLACEHOLDER_COLORS = ['#DBEAFE', '#D1FAE5', '#FEF3C7', '#FCE7F3', '#EDE9FE', '#FFEDD5']
-function placeholderColor(id: number) { return PLACEHOLDER_COLORS[id % PLACEHOLDER_COLORS.length] }
+function placeholderColor(id: string) {
+  const sum = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  return PLACEHOLDER_COLORS[sum % PLACEHOLDER_COLORS.length]
+}
 
 function useEscClose(onClose: () => void) {
   useEffect(() => {
@@ -45,7 +77,7 @@ function useLockScroll() {
 
 // ─── Thumbnail ────────────────────────────────────────────────────────────────
 
-function BannerThumb({ image, id, title }: { image: string; id: number; title: string }) {
+function BannerThumb({ image, id, title }: { image: string; id: string; title: string }) {
   if (image) {
     return (
       <div className="w-16 h-10 rounded-lg overflow-hidden border border-black/[0.08] shrink-0">
@@ -106,25 +138,52 @@ function DeleteModal({ name, onConfirm, onClose }: { name: string; onConfirm: ()
 
 export default function BannersPage() {
   const navigate = useNavigate()
-  const [banners, setBanners]         = useState<BannerData[]>([...bannerStore])
+  const [banners, setBanners]         = useState<BannerData[]>([])
+  const [total, setTotal]             = useState(0)
+  const [loading, setLoading]         = useState(true)
+  const [error, setError]             = useState('')
   const [search, setSearch]           = useState('')
   const [page, setPage]               = useState(1)
   const [pageSize]                    = useState(20)
-  const [deleteModal, setDeleteModal] = useState<{ id: number; name: string } | null>(null)
+  const [deleteModal, setDeleteModal] = useState<{ id: string; name: string } | null>(null)
 
   const totalActive   = banners.filter((b) => b.status === 'active').length
   const totalInactive = banners.filter((b) => b.status === 'inactive').length
 
-  const filtered  = banners.filter((b) => !search.trim() || b.title.toLowerCase().includes(search.trim().toLowerCase()))
-  const pageCount = Math.ceil(filtered.length / pageSize)
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const pageCount = Math.ceil(total / pageSize)
+  const paginated = banners
 
-  function handleDelete() {
+  async function loadBanners() {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await gatewayList<BannersResponse>(methods.banners.list, {
+        page,
+        limit: pageSize,
+        search: search.trim() || undefined,
+        sort: { created_at: -1 },
+      })
+      const rows = response.banners || response.data || []
+      setBanners(rows.map(mapBanner))
+      setTotal(response.total ?? rows.length)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load banners')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { void loadBanners() }, [page, pageSize, search])
+
+  async function handleDelete() {
     if (!deleteModal) return
-    const idx = bannerStore.findIndex((b) => b.id === deleteModal.id)
-    if (idx >= 0) bannerStore.splice(idx, 1)
-    setBanners([...bannerStore])
-    setDeleteModal(null)
+    try {
+      await callGateway(methods.banners.delete, { guid: deleteModal.id })
+      setDeleteModal(null)
+      await loadBanners()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete banner')
+    }
   }
 
   const thCls = 'px-4 py-3 text-left text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap'
@@ -168,6 +227,7 @@ export default function BannersPage() {
 
       {/* Table card */}
       <div className="bg-card rounded-2xl border border-black/[0.04] overflow-hidden">
+        {error && <div className="px-5 py-3 text-[13px] font-semibold text-red-600 bg-red-50 border-b border-red-100">{error}</div>}
         <div className="px-5 py-4 flex items-center justify-between border-b border-black/[0.06]">
           <div className="relative w-72">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -204,7 +264,9 @@ export default function BannersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-black/[0.04]">
-              {paginated.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan={6} className="px-4 py-12 text-center text-[13px] font-medium text-muted-foreground">Loading banners...</td></tr>
+              ) : paginated.length === 0 ? (
                 <tr><td colSpan={6} className="px-4 py-12 text-center text-[13px] font-medium text-muted-foreground">No banners found</td></tr>
               ) : paginated.map((b) => {
                 const sc = b.status === 'active'
@@ -267,7 +329,7 @@ export default function BannersPage() {
         {pageCount > 1 && (
           <div className="px-5 py-3 border-t border-black/[0.06] flex items-center justify-between">
             <p className="text-[12px] font-medium text-muted-foreground">
-              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+              Showing {total === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total}
             </p>
             <div className="flex items-center gap-1">
               <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
