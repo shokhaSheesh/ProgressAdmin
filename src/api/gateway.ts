@@ -315,4 +315,11 @@ export const methods = {
     update: 'update_banner',
     delete: 'delete_banner',
   },
+  notifications: {
+    create: 'create_notification',
+    list: 'list_notifications',
+    get: 'get_notification',
+    update: 'update_notification',
+    delete: 'delete_notification',
+  },
 } as const
