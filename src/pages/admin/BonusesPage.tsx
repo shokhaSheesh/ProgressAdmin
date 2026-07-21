@@ -1,15 +1,17 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { callGateway, gatewayList, methods } from '../../api/gateway'
+import { formatDate } from '../../api/adminCrud'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type BonusStatus     = 'active' | 'inactive'
 type AssignTarget    = 'categories' | 'products'
 
-interface BonusAssignment { target: AssignTarget; ids: number[] }
+interface BonusAssignment { target: AssignTarget; ids: Array<number | string> }
 
 interface Bonus {
-  id: number
+  id: number | string
   name: string
   value: number
   assignment: BonusAssignment
@@ -17,22 +19,15 @@ interface Bonus {
   createdAt: string
 }
 
-// ─── Seed data ────────────────────────────────────────────────────────────────
+// ─── Fallback data ────────────────────────────────────────────────────────────
 
 const initialBonuses: Bonus[] = [
-  { id: 1, name: 'Summer Engine Promo',   value: 8,  assignment: { target: 'categories', ids: [1, 5] },                       status: 'active',   createdAt: 'Jun 10, 2026' },
-  { id: 2, name: 'Brake Deal',            value: 12, assignment: { target: 'categories', ids: [2] },                          status: 'active',   createdAt: 'Jun 12, 2026' },
-  { id: 3, name: 'NGK Loyalty Bonus',     value: 5,  assignment: { target: 'products',   ids: [10101, 10102, 10201] },        status: 'active',   createdAt: 'Jun 14, 2026' },
-  { id: 4, name: 'Filter Week',           value: 10, assignment: { target: 'categories', ids: [4] },                          status: 'inactive', createdAt: 'Jun 15, 2026' },
-  { id: 5, name: 'Suspension Mega Bonus', value: 15, assignment: { target: 'categories', ids: [2, 8] },                       status: 'active',   createdAt: 'Jun 16, 2026' },
-  { id: 6, name: 'Electrical Boost',      value: 7,  assignment: { target: 'categories', ids: [3] },                          status: 'inactive', createdAt: 'Jun 17, 2026' },
-  { id: 7, name: 'Brake Pads Promo',      value: 20, assignment: { target: 'products',   ids: [10301, 10302, 10601, 10602] }, status: 'active',   createdAt: 'Jun 18, 2026' },
-  { id: 8, name: 'Clearance Bonus',       value: 3,  assignment: { target: 'products',   ids: [10501, 10502] },               status: 'inactive', createdAt: 'Jun 19, 2026' },
+  { id: 1, name: 'Summer Engine Promo', value: 8, assignment: { target: 'categories', ids: [1, 5] }, status: 'active', createdAt: 'Jun 10, 2026' },
 ]
 
-// ─── Mock lookup data ─────────────────────────────────────────────────────────
+interface CategoryOption { id: number | string; name: string }
 
-const MOCK_CATEGORIES = [
+const MOCK_CATEGORIES: CategoryOption[] = [
   { id: 1, name: 'Engine Parts' },
   { id: 2, name: 'Brakes & Suspension' },
   { id: 3, name: 'Electrical' },
@@ -43,8 +38,8 @@ const MOCK_CATEGORIES = [
   { id: 8, name: 'Tyres & Wheels' },
 ]
 
-interface ProductVariation { id: number; name: string }
-interface MockProduct      { id: number; name: string; variations: ProductVariation[] }
+interface ProductVariation { id: number | string; name: string }
+interface MockProduct      { id: number | string; name: string; variations: ProductVariation[] }
 
 const MOCK_PRODUCTS: MockProduct[] = [
   { id: 101, name: 'NGK Spark Plug BKR6E',          variations: [{ id: 10101, name: 'Single Pack' }, { id: 10102, name: 'Box of 4' }, { id: 10103, name: 'Box of 8' }] },
@@ -59,14 +54,36 @@ const MOCK_PRODUCTS: MockProduct[] = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const MOCK_PRODUCTS_META = MOCK_PRODUCTS.map(p => ({ id: p.id, varIds: p.variations.map(v => v.id) }))
+type ApiBonusRow = {
+  guid: string
+  name?: string
+  value?: string | number
+  is_active?: boolean
+  created_at?: string
+  appliers?: Array<{ applier_name?: string; applier_id?: string }>
+}
+type BonusesResponse = { bonuses?: ApiBonusRow[]; data?: ApiBonusRow[]; total?: number; stats?: Record<string, number> }
+type CategoryLookupResponse = { categories?: Array<{ guid: string; name?: string; name_en?: string; name_ru?: string; name_uz?: string }>; data?: Array<{ guid: string; name?: string; name_en?: string; name_ru?: string; name_uz?: string }> }
+type ProductLookupResponse = { products?: Array<{ guid: string; name?: string; sku?: string }>; data?: Array<{ guid: string; name?: string; sku?: string }> }
+
+function mapBonus(row: ApiBonusRow): Bonus {
+  const appliers = row.appliers || []
+  const target: AssignTarget = appliers[0]?.applier_name === 'products' ? 'products' : 'categories'
+  return {
+    id: row.guid,
+    name: row.name || '',
+    value: Number(row.value || 0),
+    assignment: { target, ids: appliers.map(a => a.applier_id || '').filter(Boolean) },
+    status: row.is_active === false ? 'inactive' : 'active',
+    createdAt: formatDate(row.created_at) || '',
+  }
+}
 
 function assignmentLabel(a: BonusAssignment): string {
   if (a.target === 'categories') {
     return a.ids.length === 1 ? '1 Category' : `${a.ids.length} Categories`
   }
-  const count = MOCK_PRODUCTS_META.filter(p => p.varIds.some(v => a.ids.includes(v))).length
-  return count === 1 ? '1 Product' : `${count} Products`
+  return a.ids.length === 1 ? '1 Product' : `${a.ids.length} Products`
 }
 
 function useEscClose(onClose: () => void) {
@@ -112,14 +129,16 @@ type ModalState = {
   name: string
   value: string
   assignTarget: AssignTarget
-  assignIds: number[]
+  assignIds: Array<number | string>
   status: BonusStatus
 }
 
 function BonusModal({
-  initial, onSave, onClose,
+  initial, categories, products, onSave, onClose,
 }: {
   initial?: Bonus
+  categories: CategoryOption[]
+  products: MockProduct[]
   onSave: (data: Omit<Bonus, 'id' | 'createdAt'>) => void
   onClose: () => void
 }) {
@@ -129,7 +148,7 @@ function BonusModal({
       : { name: '', value: '', assignTarget: 'categories', assignIds: [], status: 'active' }
   )
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set())
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set())
   const [assignSearch, setAssignSearch] = useState('')
   const overlayRef = useRef<HTMLDivElement>(null)
   useEscClose(onClose)
@@ -146,31 +165,33 @@ function BonusModal({
     setAssignSearch('')
   }
 
-  function toggleCategory(id: number) {
+  function toggleCategory(id: number | string) {
     setForm(f => ({ ...f, assignIds: f.assignIds.includes(id) ? f.assignIds.filter(x => x !== id) : [...f.assignIds, id] }))
     setErrors(e => ({ ...e, assign: '' }))
   }
 
-  function isProductFull(p: MockProduct)    { return p.variations.every(v => form.assignIds.includes(v.id)) }
-  function isProductPartial(p: MockProduct) { return p.variations.some(v => form.assignIds.includes(v.id)) && !isProductFull(p) }
+  function hasAssigned(id: number | string) { return form.assignIds.map(String).includes(String(id)) }
+  function isProductFull(p: MockProduct)    { return p.variations.every(v => hasAssigned(v.id)) }
+  function isProductPartial(p: MockProduct) { return p.variations.some(v => hasAssigned(v.id)) && !isProductFull(p) }
 
   function toggleProduct(p: MockProduct) {
     const varIds = p.variations.map(v => v.id)
     if (isProductFull(p)) {
-      setForm(f => ({ ...f, assignIds: f.assignIds.filter(id => !varIds.includes(id)) }))
+      setForm(f => ({ ...f, assignIds: f.assignIds.filter(id => !varIds.map(String).includes(String(id))) }))
     } else {
       setForm(f => ({ ...f, assignIds: [...new Set([...f.assignIds, ...varIds])] }))
     }
     setErrors(e => ({ ...e, assign: '' }))
   }
 
-  function toggleVariation(varId: number) {
-    setForm(f => ({ ...f, assignIds: f.assignIds.includes(varId) ? f.assignIds.filter(x => x !== varId) : [...f.assignIds, varId] }))
+  function toggleVariation(varId: number | string) {
+    setForm(f => ({ ...f, assignIds: hasAssigned(varId) ? f.assignIds.filter(x => String(x) !== String(varId)) : [...f.assignIds, varId] }))
     setErrors(e => ({ ...e, assign: '' }))
   }
 
-  function toggleExpand(id: number) {
-    setExpandedProducts(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  function toggleExpand(id: number | string) {
+    const key = String(id)
+    setExpandedProducts(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
   }
 
   function handleSave() {
@@ -188,11 +209,11 @@ function BonusModal({
       err ? 'border-red-400' : 'border-transparent focus:border-blue-500 focus:bg-white'].join(' ')
 
   const q = assignSearch.trim().toLowerCase()
-  const filteredCategories = MOCK_CATEGORIES.filter(c => !q || c.name.toLowerCase().includes(q))
-  const filteredProducts   = MOCK_PRODUCTS.filter(p => !q || p.name.toLowerCase().includes(q) || p.variations.some(v => v.name.toLowerCase().includes(q)))
+  const filteredCategories = categories.filter(c => !q || c.name.toLowerCase().includes(q))
+  const filteredProducts   = products.filter(p => !q || p.name.toLowerCase().includes(q) || p.variations.some(v => v.name.toLowerCase().includes(q)))
   const selectedCount = form.assignTarget === 'categories'
     ? form.assignIds.length
-    : MOCK_PRODUCTS.filter(p => p.variations.some(v => form.assignIds.includes(v.id))).length
+    : products.filter(p => p.variations.some(v => hasAssigned(v.id))).length
 
   return createPortal(
     <div ref={overlayRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
@@ -307,7 +328,7 @@ function BonusModal({
                     : filteredProducts.map(product => {
                       const full    = isProductFull(product)
                       const partial = isProductPartial(product)
-                      const isOpen  = expandedProducts.has(product.id)
+                      const isOpen  = expandedProducts.has(String(product.id))
                       return (
                         <div key={product.id} className="border-b border-black/[0.04] last:border-0">
                           <div className={['flex items-center transition-colors', full ? 'bg-blue-50/60' : 'hover:bg-[#F4F5F7]'].join(' ')}>
@@ -321,7 +342,7 @@ function BonusModal({
                                 <p className={['text-[13px] font-semibold truncate', full ? 'text-blue-700' : 'text-foreground'].join(' ')}>{product.name}</p>
                                 <p className="text-[11px] font-medium text-muted-foreground">
                                   {product.variations.length} variation{product.variations.length !== 1 ? 's' : ''}
-                                  {(full || partial) && <span className="ml-1.5 text-blue-600 font-bold">· {product.variations.filter(v => form.assignIds.includes(v.id)).length} selected</span>}
+                                  {(full || partial) && <span className="ml-1.5 text-blue-600 font-bold">· {product.variations.filter(v => hasAssigned(v.id)).length} selected</span>}
                                 </p>
                               </div>
                             </div>
@@ -329,7 +350,7 @@ function BonusModal({
                           {isOpen && (
                             <div className="border-l-2 border-blue-100 ml-10">
                               {product.variations.map(v => {
-                                const vChecked = form.assignIds.includes(v.id)
+                                const vChecked = hasAssigned(v.id)
                                 return (
                                   <button key={v.id} type="button" onClick={() => toggleVariation(v.id)}
                                     className={['flex items-center gap-3 w-full px-4 py-2 transition-colors text-left', vChecked ? 'bg-blue-50' : 'hover:bg-[#F4F5F7]'].join(' ')}>
@@ -402,30 +423,91 @@ function DeleteModal({ name, onConfirm, onClose }: { name: string; onConfirm: ()
 
 export default function BonusesPage() {
   const [bonuses, setBonuses]         = useState<Bonus[]>(initialBonuses)
+  const [categories, setCategories]   = useState<CategoryOption[]>(MOCK_CATEGORIES)
+  const [products, setProducts]       = useState<MockProduct[]>(MOCK_PRODUCTS)
+  const [total, setTotal]             = useState(0)
+  const [stats, setStats]             = useState<Record<string, number>>({})
+  const [loading, setLoading]         = useState(false)
+  const [reloadKey, setReloadKey]     = useState(0)
   const [search, setSearch]           = useState('')
   const [page, setPage]               = useState(1)
   const [pageSize]                    = useState(20)
   const [editModal, setEditModal]     = useState<Bonus | null | 'new'>(null)
-  const [deleteModal, setDeleteModal] = useState<{ id: number; name: string } | null>(null)
+  const [deleteModal, setDeleteModal] = useState<{ id: number | string; name: string } | null>(null)
 
-  const totalActive   = bonuses.filter(b => b.status === 'active').length
-  const totalInactive = bonuses.filter(b => b.status === 'inactive').length
+  const totalActive   = stats.active ?? bonuses.filter(b => b.status === 'active').length
+  const totalInactive = stats.inactive ?? bonuses.filter(b => b.status === 'inactive').length
 
-  const filtered  = bonuses.filter(b => !search.trim() || b.name.toLowerCase().includes(search.trim().toLowerCase()))
-  const pageCount = Math.ceil(filtered.length / pageSize)
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const filtered  = bonuses
+  const pageCount = Math.ceil(total / pageSize)
+  const paginated = filtered
 
-  function handleSave(data: Omit<Bonus, 'id' | 'createdAt'>) {
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    gatewayList<BonusesResponse>(methods.bonuses.list, {
+      page,
+      limit: pageSize,
+      search: search.trim() || undefined,
+      filter: {},
+      sort: { created_at: -1 },
+    }).then(res => {
+      if (cancelled) return
+      const rows = res.bonuses || res.data || []
+      setBonuses(rows.map(mapBonus))
+      setTotal(res.total ?? rows.length)
+      setStats(res.stats || {})
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [page, pageSize, search, reloadKey])
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([
+      gatewayList<CategoryLookupResponse>(methods.categories.list, { page: 1, limit: 500, sort: { created_at: -1 } }),
+      gatewayList<ProductLookupResponse>(methods.products.list, { page: 1, limit: 500, sort: { created_at: -1 } }),
+    ]).then(([categoryRes, productRes]) => {
+      if (cancelled) return
+      const categoryRows = categoryRes.categories || categoryRes.data || []
+      const productRows = productRes.products || productRes.data || []
+      if (categoryRows.length) {
+        setCategories(categoryRows.map(row => ({
+          id: row.guid,
+          name: row.name_en || row.name || row.name_ru || row.name_uz || row.guid,
+        })))
+      }
+      if (productRows.length) {
+        setProducts(productRows.map(row => ({
+          id: row.guid,
+          name: row.name || row.sku || row.guid,
+          variations: [{ id: row.guid, name: row.sku || row.name || row.guid }],
+        })))
+      }
+    }).catch(() => undefined)
+    return () => { cancelled = true }
+  }, [])
+
+  async function handleSave(data: Omit<Bonus, 'id' | 'createdAt'>) {
+    const payload = {
+      name: data.name,
+      value: String(data.value),
+      status: data.status,
+      appliers: data.assignment.ids.map(id => ({ applier_name: data.assignment.target, applier_id: String(id) })),
+    }
     if (editModal === 'new') {
-      setBonuses(prev => [{ id: Date.now(), createdAt: 'Jun 29, 2026', ...data }, ...prev])
+      await callGateway(methods.bonuses.create, payload)
     } else if (editModal) {
-      setBonuses(prev => prev.map(b => b.id === (editModal as Bonus).id ? { ...b, ...data } : b))
+      await callGateway(methods.bonuses.update, { ...payload, guid: editModal.id })
     }
     setEditModal(null)
+    setReloadKey(k => k + 1)
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!deleteModal) return
+    await callGateway(methods.bonuses.delete, { guid: String(deleteModal.id) })
     setBonuses(prev => prev.filter(b => b.id !== deleteModal.id))
     setDeleteModal(null)
   }
@@ -500,7 +582,7 @@ export default function BonusesPage() {
             </thead>
             <tbody className="divide-y divide-black/[0.04]">
               {paginated.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-12 text-center text-[13px] font-medium text-muted-foreground">No bonuses found</td></tr>
+                <tr><td colSpan={6} className="px-4 py-12 text-center text-[13px] font-medium text-muted-foreground">{loading ? 'Loading bonuses...' : 'No bonuses found'}</td></tr>
               ) : paginated.map(b => {
                 const sc = b.status === 'active'
                   ? { bg: 'bg-emerald-50', text: 'text-emerald-600', dot: 'bg-emerald-500', label: 'Active' }
@@ -554,7 +636,7 @@ export default function BonusesPage() {
         {pageCount > 1 && (
           <div className="px-5 py-3 border-t border-black/[0.06] flex items-center justify-between">
             <p className="text-[12px] font-medium text-muted-foreground">
-              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total}
             </p>
             <div className="flex items-center gap-1">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
@@ -579,6 +661,8 @@ export default function BonusesPage() {
       {editModal !== null && (
         <BonusModal
           initial={editModal === 'new' ? undefined : editModal as Bonus}
+          categories={categories}
+          products={products}
           onSave={handleSave}
           onClose={() => setEditModal(null)}
         />

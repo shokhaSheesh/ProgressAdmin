@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { callGateway, gatewayList, methods } from '../../api/gateway'
+import { formatDate } from '../../api/adminCrud'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type RequestStatus = 'new' | 'resolved' | 'rejected'
+type RequestStatus = 'new' | 'pending' | 'open' | 'resolved' | 'rejected' | 'closed' | 'cancelled'
 
 interface SupportRequest {
-  id: number
+  id: string
   name: string
   phone: string
   text: string
@@ -15,29 +17,33 @@ interface SupportRequest {
   updatedAt: string
 }
 
-// ─── Seed data ────────────────────────────────────────────────────────────────
+type ApiTicketRow = {
+  guid: string
+  content?: string
+  status?: string
+  user_full_name?: string
+  user_phone?: string
+  created_at?: string
+  updated_at?: string
+}
 
-const initialRequests: SupportRequest[] = [
-  { id: 1,  name: 'Akmal Karimov',    phone: '+998 90 123 45 67', text: 'I cannot log into my account. Every time I enter my password it says "invalid credentials" but I have not changed anything. Please help urgently.',                                          status: 'new',      createdAt: 'Jun 22, 2026  09:14', updatedAt: 'Jun 22, 2026  09:14' },
-  { id: 2,  name: 'Bekzod Saidov',    phone: '+998 91 234 56 78', text: 'My withdrawal request from June 19 has been stuck in "Pending" status for over 3 days. Amount: 120,000 UZS. Please check what happened.',                                                     status: 'resolved', createdAt: 'Jun 19, 2026  11:30', updatedAt: 'Jun 21, 2026  14:20' },
-  { id: 3,  name: 'Kamola Mirzayeva', phone: '+998 91 234 56 78', text: 'I would like to request a change to my registered phone number. Current: +998 91 234 56 78, New: +998 90 987 65 43. Please let me know what documents are needed.',                          status: 'new',      createdAt: 'Jun 21, 2026  14:05', updatedAt: 'Jun 21, 2026  14:05' },
-  { id: 4,  name: 'Eldor Nazarov',    phone: '+998 93 345 67 89', text: 'The bonus points I earned from my last three orders are not showing up in my balance. I completed orders #1042, #1044, and #1051 but received no bonuses.',                                    status: 'rejected', createdAt: 'Jun 20, 2026  08:55', updatedAt: 'Jun 21, 2026  10:30' },
-  { id: 5,  name: 'Murod Xasanov',    phone: '+998 94 456 78 90', text: 'Hi, I accidentally placed a duplicate order. Order #1058 and #1059 are identical. Can you please cancel one of them? I only need one set of brake pads.',                                     status: 'resolved', createdAt: 'Jun 21, 2026  16:02', updatedAt: 'Jun 22, 2026  09:00' },
-  { id: 6,  name: 'Nodir Qodirov',    phone: '+998 95 567 89 01', text: 'The NGK spark plugs I received are a different model than what I ordered. I ordered BKR6E but received BKR5E. Please arrange an exchange or refund.',                                          status: 'new',      createdAt: 'Jun 22, 2026  12:48', updatedAt: 'Jun 22, 2026  12:48' },
-  { id: 7,  name: 'Kamola Nazarova',  phone: '+998 97 678 90 12', text: 'I need an invoice for my last purchase for tax reporting purposes. Order #1033, placed on Jun 15. Company name: Nazarova & Co LLC, TIN: 123456789.',                                          status: 'resolved', createdAt: 'Jun 15, 2026  10:21', updatedAt: 'Jun 16, 2026  11:00' },
-  { id: 8,  name: 'Ruslan Xolmatov',  phone: '+998 93 345 67 89', text: 'I have been trying to reach support by phone for two days but nobody answers. This is very frustrating. I have an urgent issue with my account being blocked.',                                 status: 'new',      createdAt: 'Jun 22, 2026  09:33', updatedAt: 'Jun 22, 2026  09:33' },
-  { id: 9,  name: 'Sanjar Mirzaev',   phone: '+998 99 890 12 34', text: 'The delivery address on my current order is wrong. I moved recently. Order #1047 — please update the address to: Tashkent, Yakkasaroy, Amir Temur 88, apt 12. It has not been shipped yet.', status: 'rejected', createdAt: 'Jun 20, 2026  07:33', updatedAt: 'Jun 20, 2026  15:45' },
-  { id: 10, name: 'Nilufar Hasanova', phone: '+998 97 678 90 12', text: 'Hello, I would like to know if you carry Bosch alternators for a 2018 Chevrolet Cobalt. If yes, what is the price and availability? Also do you offer installation service?',                 status: 'resolved', createdAt: 'Jun 18, 2026  11:15', updatedAt: 'Jun 18, 2026  13:40' },
-  { id: 11, name: 'Komil Hasanov',    phone: '+998 90 901 23 45', text: 'My account shows an incorrect bonus balance. It should be 45,000 UZS but only shows 12,000 UZS. I have the receipts for all my purchases and can provide screenshots.',                       status: 'new',      createdAt: 'Jun 22, 2026  15:10', updatedAt: 'Jun 22, 2026  15:10' },
-  { id: 12, name: 'Firdavs Rakhimov', phone: '+998 98 789 01 23', text: 'I placed an order 5 days ago (order #1029) but still have not received any delivery updates. The status just says processing. Can you check what is going on?',                               status: 'resolved', createdAt: 'Jun 17, 2026  13:22', updatedAt: 'Jun 19, 2026  09:15' },
-]
+type TicketsResponse = {
+  tickets?: ApiTicketRow[]
+  data?: ApiTicketRow[]
+  total?: number
+  stats?: Record<string, number>
+}
 
 // ─── Status config ────────────────────────────────────────────────────────────
 
 const statusConfig: Record<RequestStatus, { label: string; bg: string; text: string; dot: string; border: string }> = {
   new:      { label: 'New',      bg: 'bg-blue-50',    text: 'text-blue-600',    dot: 'bg-blue-500',    border: 'border-blue-400'    },
+  pending:  { label: 'Pending',  bg: 'bg-blue-50',    text: 'text-blue-600',    dot: 'bg-blue-500',    border: 'border-blue-400'    },
+  open:     { label: 'Open',     bg: 'bg-blue-50',    text: 'text-blue-600',    dot: 'bg-blue-500',    border: 'border-blue-400'    },
   resolved: { label: 'Resolved', bg: 'bg-emerald-50', text: 'text-emerald-600', dot: 'bg-emerald-500', border: 'border-emerald-400' },
   rejected: { label: 'Rejected', bg: 'bg-red-50',     text: 'text-red-500',     dot: 'bg-red-400',     border: 'border-red-400'     },
+  closed:   { label: 'Closed',   bg: 'bg-red-50',     text: 'text-red-500',     dot: 'bg-red-400',     border: 'border-red-400'     },
+  cancelled:{ label: 'Cancelled',bg: 'bg-red-50',     text: 'text-red-500',     dot: 'bg-red-400',     border: 'border-red-400'     },
 }
 
 const ALL_STATUSES: RequestStatus[] = ['new', 'resolved', 'rejected']
@@ -48,6 +54,25 @@ const avatarColors = ['bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-ambe
 
 function initials(name: string) {
   return name.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+}
+
+function mapTicket(row: ApiTicketRow): SupportRequest {
+  const status = (row.status === 'pending' || row.status === 'open') ? 'new' : (row.status as RequestStatus) || 'new'
+  return {
+    id: row.guid,
+    name: row.user_full_name || 'Unknown user',
+    phone: row.user_phone || '',
+    text: row.content || '',
+    status: statusConfig[status] ? status : 'new',
+    createdAt: formatDate(row.created_at) || '',
+    updatedAt: formatDate(row.updated_at) || '',
+  }
+}
+
+function apiStatus(status: RequestStatus) {
+  if (status === 'new') return 'pending'
+  if (status === 'rejected') return 'cancelled'
+  return status
 }
 
 function useEscClose(fn: () => void) {
@@ -70,11 +95,12 @@ function useLockScroll() {
 function RequestModal({ req, onClose, onStatusChange }: {
   req: SupportRequest
   onClose: () => void
-  onStatusChange: (id: number, status: RequestStatus) => void
+  onStatusChange: (id: string, status: RequestStatus) => void
 }) {
   const overlayRef = useRef<HTMLDivElement>(null)
   const av = initials(req.name)
   const sc = statusConfig[req.status]
+  const colorIndex = Math.abs(Array.from(req.id).reduce((sum, char) => sum + char.charCodeAt(0), 0)) % avatarColors.length
   useEscClose(onClose)
   useLockScroll()
 
@@ -86,7 +112,7 @@ function RequestModal({ req, onClose, onStatusChange }: {
         {/* Header */}
         <div className="px-6 py-5 border-b border-black/[0.06] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <span className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-white text-[12px] font-bold ${avatarColors[req.id % avatarColors.length]}`}>{av}</span>
+            <span className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-white text-[12px] font-bold ${avatarColors[colorIndex]}`}>{av}</span>
             <div>
               <p className="text-[15px] font-extrabold text-foreground">{req.name}</p>
               <p className="text-[12px] font-medium text-muted-foreground font-mono">{req.phone}</p>
@@ -209,36 +235,50 @@ function FilterDropdown({ value, onChange }: { value: Filter; onChange: (v: Filt
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function RequestsPage() {
-  const [requests, setRequests]     = useState<SupportRequest[]>(initialRequests)
+  const [requests, setRequests]     = useState<SupportRequest[]>([])
+  const [total, setTotal]           = useState(0)
+  const [stats, setStats]           = useState<Record<string, number>>({})
+  const [loading, setLoading]       = useState(false)
   const [search, setSearch]         = useState('')
   const [filter, setFilter]         = useState<Filter>('all')
   const [page, setPage]             = useState(1)
   const [pageSize]                  = useState(20)
   const [viewModal, setViewModal]   = useState<SupportRequest | null>(null)
 
-  const countNew      = requests.filter(r => r.status === 'new').length
-  const countResolved = requests.filter(r => r.status === 'resolved').length
-  const countRejected = requests.filter(r => r.status === 'rejected').length
-
-  const filtered = requests.filter(r => {
-    const q = search.trim().toLowerCase()
-    const matchSearch = !q || r.name.toLowerCase().includes(q) || r.phone.includes(q) || r.text.toLowerCase().includes(q)
-    const matchFilter = filter === 'all' || r.status === filter
-    return matchSearch && matchFilter
-  })
-
-  const pageCount = Math.ceil(filtered.length / pageSize)
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const countNew      = stats.pending || stats.open || requests.filter(r => r.status === 'new').length
+  const countResolved = stats.resolved || requests.filter(r => r.status === 'resolved').length
+  const countRejected = stats.cancelled || stats.closed || requests.filter(r => r.status === 'rejected').length
+  const pageCount = Math.ceil(total / pageSize)
+  const paginated = requests
 
   function handleSearch(v: string) { setSearch(v); setPage(1) }
   function handleFilter(v: Filter) { setFilter(v); setPage(1) }
 
-  function handleStatusChange(id: number, status: RequestStatus) {
-    const now = new Date()
-    const updatedAt = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-      + '  ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, status, updatedAt } : r))
-    setViewModal(prev => prev?.id === id ? { ...prev, status, updatedAt } : prev)
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    gatewayList<TicketsResponse>(methods.tickets.list, {
+      page,
+      limit: pageSize,
+      search: search.trim() || undefined,
+      filter: filter === 'all' ? {} : { status: apiStatus(filter as RequestStatus) },
+      sort: { created_at: -1 },
+    }).then(res => {
+      if (cancelled) return
+      const rows = res.tickets || res.data || []
+      setRequests(rows.map(mapTicket))
+      setTotal(res.total ?? rows.length)
+      setStats(res.stats || {})
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [page, pageSize, search, filter])
+
+  async function handleStatusChange(id: string, status: RequestStatus) {
+    await callGateway(methods.tickets.update, { guid: id, status: apiStatus(status) })
+    setRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r))
+    setViewModal(prev => prev?.id === id ? { ...prev, status } : prev)
   }
 
   const thCls = 'px-5 py-3 text-left text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap'
@@ -255,7 +295,7 @@ export default function RequestsPage() {
       <div className="grid grid-cols-4 gap-4">
         {[
           {
-            label: 'Total', value: requests.length,
+            label: 'Total', value: total,
             iconBg: 'bg-blue-100', iconColor: 'text-blue-600',
             icon: <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>,
           },
@@ -325,7 +365,7 @@ export default function RequestsPage() {
                       <svg className="w-8 h-8 text-muted-foreground/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
                       </svg>
-                      <p className="text-[13px] font-semibold text-muted-foreground">No requests found</p>
+                      <p className="text-[13px] font-semibold text-muted-foreground">{loading ? 'Loading requests...' : 'No requests found'}</p>
                       <button onClick={() => { handleSearch(''); handleFilter('all') }} className="text-[12px] font-semibold text-primary hover:underline">Clear filters</button>
                     </div>
                   </td>
@@ -363,7 +403,7 @@ export default function RequestsPage() {
         {pageCount > 1 && (
           <div className="px-5 py-3 border-t border-black/[0.06] flex items-center justify-between">
             <p className="text-[12px] font-medium text-muted-foreground">
-              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total}
             </p>
             <div className="flex items-center gap-1">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}

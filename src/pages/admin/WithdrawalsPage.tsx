@@ -1,32 +1,39 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
+import { callGateway, gatewayList, methods } from '../../api/gateway'
+import { formatDate } from '../../api/adminCrud'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type CashStatus = 'pending' | 'out_for_delivery' | 'completed'
 
 interface CashDelivery {
-  id: number; userName: string; avatar: string; phone: string
+  id: string; usersId?: string; userName: string; avatar: string; phone: string
   amount: number; status: CashStatus
   receiverName: string; receiverPhone: string; receiverAddress: string
   requestedAt: string
 }
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+type ApiWithdrawalRow = {
+  guid: string
+  users_id?: string
+  user_full_name?: string
+  user_phone?: string
+  user_address?: string
+  amount?: number
+  status?: CashStatus
+  created_at?: string
+}
 
-const initialCashDeliveries: CashDelivery[] = [
-  { id: 1,  userName: 'Akmal Karimov',    avatar: 'AK', phone: '+998 90 123 45 67', amount: 50000,  status: 'pending',          receiverName: 'Akmal Karimov',    receiverPhone: '+998 90 123 45 67', receiverAddress: "Tashkent, Yunusabad, Amir Temur ko'chasi 15",    requestedAt: 'Jun 21, 2026  09:14' },
-  { id: 2,  userName: 'Bekzod Saidov',    avatar: 'BS', phone: '+998 91 234 56 78', amount: 120000, status: 'completed',        receiverName: 'Bekzod Saidov',    receiverPhone: '+998 91 234 56 78', receiverAddress: "Tashkent, Chilonzor, Bunyodkor ko'chasi 7",      requestedAt: 'Jun 19, 2026  11:30' },
-  { id: 3,  userName: 'Eldor Nazarov',    avatar: 'EN', phone: '+998 93 345 67 89', amount: 80000,  status: 'out_for_delivery', receiverName: 'Eldor Nazarov',    receiverPhone: '+998 93 345 67 89', receiverAddress: "Tashkent, Mirzo Ulug'bek, Mustaqillik 22",       requestedAt: 'Jun 18, 2026  08:55' },
-  { id: 4,  userName: 'Murod Xasanov',    avatar: 'MX', phone: '+998 94 456 78 90', amount: 200000, status: 'completed',        receiverName: 'Murod Xasanov',    receiverPhone: '+998 94 456 78 90', receiverAddress: "Tashkent, Shayxontohur, Navoiy ko'chasi 3",      requestedAt: 'Jun 17, 2026  16:02' },
-  { id: 5,  userName: 'Nodir Qodirov',    avatar: 'NQ', phone: '+998 95 567 89 01', amount: 150000, status: 'pending',          receiverName: 'Nodir Qodirov',    receiverPhone: '+998 95 567 89 01', receiverAddress: "Samarkand, Registon ko'chasi 1",                  requestedAt: 'Jun 20, 2026  13:47' },
-  { id: 6,  userName: 'Kamola Nazarova',  avatar: 'KN', phone: '+998 97 678 90 12', amount: 75000,  status: 'completed',        receiverName: 'Kamola Nazarova',  receiverPhone: '+998 97 678 90 12', receiverAddress: "Tashkent, Uchtepa, Sergeli ko'chasi 9",          requestedAt: 'Jun 15, 2026  10:21' },
-  { id: 7,  userName: 'Firdavs Rakhimov', avatar: 'FR', phone: '+998 98 789 01 23', amount: 40000,  status: 'pending',          receiverName: 'Firdavs Rakhimov', receiverPhone: '+998 98 789 01 23', receiverAddress: "Tashkent, Yashnobod, O'zbekiston ko'chasi 44",   requestedAt: 'Jun 21, 2026  14:58' },
-  { id: 8,  userName: 'Sanjar Mirzaev',   avatar: 'SM', phone: '+998 99 890 12 34', amount: 95000,  status: 'out_for_delivery', receiverName: 'Sanjar Mirzaev',   receiverPhone: '+998 99 890 12 34', receiverAddress: "Namangan, Uychi ko'chasi 18",                     requestedAt: 'Jun 14, 2026  07:33' },
-  { id: 9,  userName: 'Komil Hasanov',    avatar: 'KH', phone: '+998 90 901 23 45', amount: 60000,  status: 'completed',        receiverName: 'Komil Hasanov',    receiverPhone: '+998 90 901 23 45', receiverAddress: "Samarkand, Bog'ishamol ko'chasi 6",              requestedAt: 'Jun 12, 2026  15:10' },
-  { id: 10, userName: 'Zulfiya Karimova', avatar: 'ZK', phone: '+998 91 012 34 56', amount: 35000,  status: 'pending',          receiverName: 'Zulfiya Karimova', receiverPhone: '+998 91 012 34 56', receiverAddress: "Tashkent, Olmazor, Qo'yliq ko'chasi 11",        requestedAt: 'Jun 22, 2026  12:05' },
-]
+type WithdrawalsResponse = {
+  withdrawals?: ApiWithdrawalRow[]
+  data?: ApiWithdrawalRow[]
+  total?: number
+  stats?: Record<string, number>
+}
+
+type UsersResponse = { users?: Array<{ guid: string; full_name?: string; phone?: string; login?: string }> ; data?: Array<{ guid: string; full_name?: string; phone?: string; login?: string }> }
 
 // ─── Status config ────────────────────────────────────────────────────────────
 
@@ -43,6 +50,24 @@ const CASH_STATUS_OPTIONS: CashStatus[] = ['pending', 'out_for_delivery', 'compl
 const avatarColors = ['bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500', 'bg-pink-500', 'bg-cyan-500']
 
 function fmt(n: number) { return n.toLocaleString('ru-RU').replace(/,/g, ' ') }
+function initials(name: string) { return name.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || '#' }
+function mapWithdrawal(row: ApiWithdrawalRow): CashDelivery {
+  const userName = row.user_full_name || 'Unknown user'
+  const phone = row.user_phone || ''
+  return {
+    id: row.guid,
+    usersId: row.users_id,
+    userName,
+    avatar: initials(userName),
+    phone,
+    amount: Number(row.amount || 0),
+    status: row.status || 'pending',
+    receiverName: userName,
+    receiverPhone: phone,
+    receiverAddress: row.user_address || '',
+    requestedAt: formatDate(row.created_at) || '',
+  }
+}
 
 function useEscClose(onClose: () => void) {
   useEffect(() => {
@@ -467,42 +492,78 @@ function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
 
 export default function WithdrawalsPage() {
   const navigate = useNavigate()
-  const [cashDeliveries, setCashDeliveries] = useState<CashDelivery[]>(initialCashDeliveries)
+  const [cashDeliveries, setCashDeliveries] = useState<CashDelivery[]>([])
+  const [totalRows, setTotalRows]           = useState(0)
+  const [stats, setStats]                   = useState<Record<string, number>>({})
+  const [loading, setLoading]               = useState(false)
+  const [reloadKey, setReloadKey]           = useState(0)
   const [search, setSearch]                 = useState('')
   const [page, setPage]                     = useState(1)
   const [pageSize, setPageSize]             = useState(20)
   const [editModal, setEditModal]           = useState<CashDelivery | null | 'new'>(null)
-  const [deleteModal, setDeleteModal]       = useState<{ id: number; userName: string } | null>(null)
+  const [deleteModal, setDeleteModal]       = useState<{ id: string; userName: string } | null>(null)
 
-  const total     = cashDeliveries.length
-  const pending   = cashDeliveries.filter((r) => r.status === 'pending').length
-  const outForDel = cashDeliveries.filter((r) => r.status === 'out_for_delivery').length
-  const completed = cashDeliveries.filter((r) => r.status === 'completed').length
+  const total     = totalRows
+  const pending   = stats.pending ?? cashDeliveries.filter((r) => r.status === 'pending').length
+  const outForDel = stats.out_for_delivery ?? cashDeliveries.filter((r) => r.status === 'out_for_delivery').length
+  const completed = stats.completed ?? cashDeliveries.filter((r) => r.status === 'completed').length
 
-  const filtered = cashDeliveries.filter((r) => {
-    const q = search.trim().toLowerCase()
-    return !q || r.userName.toLowerCase().includes(q) || r.receiverName.toLowerCase().includes(q)
-  })
-  const pageCount = Math.ceil(filtered.length / pageSize)
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const pageCount = Math.ceil(totalRows / pageSize)
+  const paginated = cashDeliveries
   const handleSearch = (v: string) => { setSearch(v); setPage(1) }
 
-  const handleSave = (data: Omit<CashDelivery, 'id' | 'requestedAt'>) => {
-    if (editModal === 'new') {
-      const now = new Date()
-      const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-      const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
-      setCashDeliveries((prev) => [{ id: Date.now(), requestedAt: `${date}  ${time}`, ...data }, ...prev])
-    } else if (editModal) {
-      setCashDeliveries((prev) => prev.map((r) => r.id === editModal.id ? { ...r, ...data } : r))
-    }
-    setEditModal(null)
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    gatewayList<WithdrawalsResponse>(methods.withdrawals.list, {
+      page,
+      limit: pageSize,
+      search: search.trim() || undefined,
+      filter: {},
+      sort: { created_at: -1 },
+    }).then(res => {
+      if (cancelled) return
+      const rows = res.withdrawals || res.data || []
+      setCashDeliveries(rows.map(mapWithdrawal))
+      setTotalRows(res.total ?? rows.length)
+      setStats(res.stats || {})
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [page, pageSize, search, reloadKey])
+
+  async function resolveUserId(data: Omit<CashDelivery, 'id' | 'requestedAt'>) {
+    if (data.usersId) return data.usersId
+    const response = await gatewayList<UsersResponse>(methods.users.list, {
+      page: 1,
+      limit: 1,
+      search: data.phone || data.userName,
+      filter: {},
+    })
+    const user = (response.users || response.data || [])[0]
+    if (!user?.guid) throw new Error('User not found for withdrawal')
+    return user.guid
   }
 
-  const handleDelete = () => {
+  const handleSave = async (data: Omit<CashDelivery, 'id' | 'requestedAt'>) => {
+    if (editModal === 'new') {
+      const usersId = await resolveUserId(data)
+      await callGateway(methods.withdrawals.create, { users_id: usersId, amount: data.amount, status: data.status })
+    } else if (editModal) {
+      await callGateway(methods.withdrawals.update, { guid: editModal.id, amount: data.amount, status: data.status })
+    }
+    setEditModal(null)
+    setPage(1)
+    setReloadKey(k => k + 1)
+  }
+
+  const handleDelete = async () => {
     if (!deleteModal) return
+    await callGateway(methods.withdrawals.delete, { guid: deleteModal.id })
     setCashDeliveries((prev) => prev.filter((r) => r.id !== deleteModal.id))
     setDeleteModal(null)
+    setReloadKey(k => k + 1)
   }
 
   return (
@@ -541,7 +602,7 @@ export default function WithdrawalsPage() {
             </thead>
             <tbody>
               {paginated.length === 0
-                ? <EmptySearch onClear={() => handleSearch('')} />
+                ? loading ? <tr><td colSpan={5} className="px-5 py-16 text-center text-[13px] font-semibold text-muted-foreground">Loading withdrawals...</td></tr> : <EmptySearch onClear={() => handleSearch('')} />
                 : paginated.map((req, i) => {
                     const sc = cashStatusConfig[req.status]
                     return (
@@ -571,7 +632,7 @@ export default function WithdrawalsPage() {
         </div>
 
         <PaginationFooter
-          page={page} pageCount={pageCount} pageSize={pageSize} total={filtered.length}
+          page={page} pageCount={pageCount} pageSize={pageSize} total={totalRows}
           onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1) }}
         />
       </div>

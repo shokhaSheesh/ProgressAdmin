@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { callGateway, methods } from '../../api/gateway'
+import { formatDate } from '../../api/adminCrud'
 
 // ─── Types (re-exported so WithdrawalsPage can import the store) ──────────────
 
 export type CashStatus = 'pending' | 'out_for_delivery' | 'completed'
 
 export interface CashDelivery {
-  id: number
+  id: string
   userName: string
   avatar: string
   phone: string
@@ -21,16 +23,7 @@ export interface CashDelivery {
 // ─── Shared mutable store ─────────────────────────────────────────────────────
 
 export const withdrawalStore: CashDelivery[] = [
-  { id: 1,  userName: 'Akmal Karimov',    avatar: 'AK', phone: '+998 90 123 45 67', amount: 50000,  status: 'pending',          receiverName: 'Akmal Karimov',    receiverPhone: '+998 90 123 45 67', receiverAddress: "Tashkent, Yunusabad, Amir Temur ko'chasi 15",    requestedAt: 'Jun 21, 2026  09:14' },
-  { id: 2,  userName: 'Bekzod Saidov',    avatar: 'BS', phone: '+998 91 234 56 78', amount: 120000, status: 'completed',        receiverName: 'Bekzod Saidov',    receiverPhone: '+998 91 234 56 78', receiverAddress: "Tashkent, Chilonzor, Bunyodkor ko'chasi 7",      requestedAt: 'Jun 19, 2026  11:30' },
-  { id: 3,  userName: 'Eldor Nazarov',    avatar: 'EN', phone: '+998 93 345 67 89', amount: 80000,  status: 'out_for_delivery', receiverName: 'Eldor Nazarov',    receiverPhone: '+998 93 345 67 89', receiverAddress: "Tashkent, Mirzo Ulug'bek, Mustaqillik 22",       requestedAt: 'Jun 18, 2026  08:55' },
-  { id: 4,  userName: 'Murod Xasanov',    avatar: 'MX', phone: '+998 94 456 78 90', amount: 200000, status: 'completed',        receiverName: 'Murod Xasanov',    receiverPhone: '+998 94 456 78 90', receiverAddress: "Tashkent, Shayxontohur, Navoiy ko'chasi 3",      requestedAt: 'Jun 17, 2026  16:02' },
-  { id: 5,  userName: 'Nodir Qodirov',    avatar: 'NQ', phone: '+998 95 567 89 01', amount: 150000, status: 'pending',          receiverName: 'Nodir Qodirov',    receiverPhone: '+998 95 567 89 01', receiverAddress: "Samarkand, Registon ko'chasi 1",                  requestedAt: 'Jun 20, 2026  13:47' },
-  { id: 6,  userName: 'Kamola Nazarova',  avatar: 'KN', phone: '+998 97 678 90 12', amount: 75000,  status: 'completed',        receiverName: 'Kamola Nazarova',  receiverPhone: '+998 97 678 90 12', receiverAddress: "Tashkent, Uchtepa, Sergeli ko'chasi 9",          requestedAt: 'Jun 15, 2026  10:21' },
-  { id: 7,  userName: 'Firdavs Rakhimov', avatar: 'FR', phone: '+998 98 789 01 23', amount: 40000,  status: 'pending',          receiverName: 'Firdavs Rakhimov', receiverPhone: '+998 98 789 01 23', receiverAddress: "Tashkent, Yashnobod, O'zbekiston ko'chasi 44",   requestedAt: 'Jun 21, 2026  14:58' },
-  { id: 8,  userName: 'Sanjar Mirzaev',   avatar: 'SM', phone: '+998 99 890 12 34', amount: 95000,  status: 'out_for_delivery', receiverName: 'Sanjar Mirzaev',   receiverPhone: '+998 99 890 12 34', receiverAddress: "Namangan, Uychi ko'chasi 18",                     requestedAt: 'Jun 14, 2026  07:33' },
-  { id: 9,  userName: 'Komil Hasanov',    avatar: 'KH', phone: '+998 90 901 23 45', amount: 60000,  status: 'completed',        receiverName: 'Komil Hasanov',    receiverPhone: '+998 90 901 23 45', receiverAddress: "Samarkand, Bog'ishamol ko'chasi 6",               requestedAt: 'Jun 12, 2026  15:10' },
-  { id: 10, userName: 'Zulfiya Karimova', avatar: 'ZK', phone: '+998 91 012 34 56', amount: 35000,  status: 'pending',          receiverName: 'Zulfiya Karimova', receiverPhone: '+998 91 012 34 56', receiverAddress: "Tashkent, Olmazor, Qo'yliq ko'chasi 11",         requestedAt: 'Jun 22, 2026  12:05' },
+  { id: '1', userName: 'Akmal Karimov', avatar: 'AK', phone: '+998 90 123 45 67', amount: 50000, status: 'pending', receiverName: 'Akmal Karimov', receiverPhone: '+998 90 123 45 67', receiverAddress: "Tashkent, Yunusabad, Amir Temur ko'chasi 15", requestedAt: 'Jun 21, 2026  09:14' },
 ]
 
 // ─── Status config ────────────────────────────────────────────────────────────
@@ -44,6 +37,38 @@ const statusConfig: Record<CashStatus, { label: string; bg: string; text: string
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const fmt = (n: number) => n.toLocaleString('ru-RU').replace(/,/g, ' ')
+
+type ApiWithdrawalRow = {
+  guid: string
+  user_full_name?: string
+  user_phone?: string
+  user_address?: string
+  amount?: number
+  status?: CashStatus
+  created_at?: string
+}
+type GetWithdrawalResponse = { withdrawal?: ApiWithdrawalRow; data?: ApiWithdrawalRow }
+
+function initials(value?: string) {
+  const parts = (value || '#').trim().split(/\s+/).filter(Boolean)
+  return (parts[0]?.[0] || '#') + (parts[1]?.[0] || '')
+}
+
+function mapWithdrawal(row: ApiWithdrawalRow): CashDelivery {
+  const name = row.user_full_name || 'Unknown user'
+  return {
+    id: row.guid,
+    userName: name,
+    avatar: initials(name).toUpperCase(),
+    phone: row.user_phone || '',
+    amount: Number(row.amount || 0),
+    status: row.status || 'pending',
+    receiverName: name,
+    receiverPhone: row.user_phone || '',
+    receiverAddress: row.user_address || '',
+    requestedAt: formatDate(row.created_at) || '',
+  }
+}
 
 const avatarColors = ['bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500', 'bg-pink-500', 'bg-cyan-500']
 function avatarColor(avatar: string) {
@@ -131,8 +156,36 @@ type Tab = 'info' | 'changelog'
 export default function WithdrawalsDetailPage() {
   const navigate  = useNavigate()
   const { id }    = useParams<{ id: string }>()
-  const wd        = withdrawalStore.find(w => w.id === Number(id))
+  const [wd, setWd] = useState<CashDelivery | null>(null)
+  const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('info')
+
+  useEffect(() => {
+    if (!id) {
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    callGateway<GetWithdrawalResponse>(methods.withdrawals.get, { guid: id }).then(res => {
+      if (cancelled) return
+      const row = res.withdrawal || res.data
+      setWd(row ? mapWithdrawal(row) : null)
+    }).catch(() => {
+      if (!cancelled) setWd(null)
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [id])
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
+        <p className="text-[15px] font-bold text-foreground">Loading withdrawal...</p>
+      </div>
+    )
+  }
 
   if (!wd) {
     return (
@@ -146,7 +199,7 @@ export default function WithdrawalsDetailPage() {
   }
 
   const sc      = statusConfig[wd.status]
-  const entries = MOCK_CHANGELOGS[wd.id] ?? []
+  const entries = MOCK_CHANGELOGS[Number(wd.id)] ?? []
 
   return (
     <div className="flex flex-col h-full">

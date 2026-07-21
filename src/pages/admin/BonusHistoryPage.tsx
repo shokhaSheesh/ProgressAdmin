@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
+import { gatewayList, methods } from '../../api/gateway'
+import { formatDate } from '../../api/adminCrud'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -6,7 +8,7 @@ type TxType = 'received' | 'withdrawn'
 type Filter = 'all' | 'received' | 'withdrawn'
 
 interface BonusTx {
-  id: number
+  id: string
   userName: string
   avatar: string
   phone: string
@@ -15,30 +17,41 @@ interface BonusTx {
   date: string
 }
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+type ApiBonusHistoryRow = {
+  guid: string
+  user_full_name?: string
+  user_phone?: string
+  type?: string
+  amount?: number
+  created_at?: string
+}
 
-const ALL_TRANSACTIONS: BonusTx[] = [
-  { id: 1,  userName: 'Akmal Karimov',    avatar: 'AK', phone: '+998 90 123 45 67', type: 'received',  amount: 5000,   date: 'Jun 21, 2026  09:14' },
-  { id: 2,  userName: 'Bekzod Saidov',    avatar: 'BS', phone: '+998 91 234 56 78', type: 'withdrawn', amount: 120000, date: 'Jun 19, 2026  11:30' },
-  { id: 3,  userName: 'Kamola Mirzayeva', avatar: 'KM', phone: '+998 91 234 56 78', type: 'received',  amount: 12000,  date: 'Jun 18, 2026  14:05' },
-  { id: 4,  userName: 'Eldor Nazarov',    avatar: 'EN', phone: '+998 93 345 67 89', type: 'withdrawn', amount: 80000,  date: 'Jun 18, 2026  08:55' },
-  { id: 5,  userName: 'Murod Xasanov',    avatar: 'MX', phone: '+998 94 456 78 90', type: 'received',  amount: 18000,  date: 'Jun 17, 2026  16:02' },
-  { id: 6,  userName: 'Murod Xasanov',    avatar: 'MX', phone: '+998 94 456 78 90', type: 'withdrawn', amount: 200000, date: 'Jun 17, 2026  10:20' },
-  { id: 7,  userName: 'Nodir Qodirov',    avatar: 'NQ', phone: '+998 95 567 89 01', type: 'received',  amount: 9000,   date: 'Jun 16, 2026  12:48' },
-  { id: 8,  userName: 'Kamola Nazarova',  avatar: 'KN', phone: '+998 97 678 90 12', type: 'withdrawn', amount: 75000,  date: 'Jun 15, 2026  10:21' },
-  { id: 9,  userName: 'Ruslan Xolmatov',  avatar: 'RX', phone: '+998 93 345 67 89', type: 'received',  amount: 0,      date: 'Jun 14, 2026  09:33' },
-  { id: 10, userName: 'Sanjar Mirzaev',   avatar: 'SM', phone: '+998 99 890 12 34', type: 'withdrawn', amount: 95000,  date: 'Jun 14, 2026  07:33' },
-  { id: 11, userName: 'Nilufar Hasanova', avatar: 'NH', phone: '+998 97 678 90 12', type: 'received',  amount: 18000,  date: 'Jun 12, 2026  11:15' },
-  { id: 12, userName: 'Komil Hasanov',    avatar: 'KH', phone: '+998 90 901 23 45', type: 'withdrawn', amount: 60000,  date: 'Jun 12, 2026  15:10' },
-  { id: 13, userName: 'Firdavs Rakhimov', avatar: 'FR', phone: '+998 98 789 01 23', type: 'received',  amount: 7500,   date: 'Jun 11, 2026  13:22' },
-  { id: 14, userName: 'Akmal Karimov',    avatar: 'AK', phone: '+998 90 123 45 67', type: 'received',  amount: 4500,   date: 'Jun 10, 2026  08:41' },
-  { id: 15, userName: 'Zulfiya Karimova', avatar: 'ZK', phone: '+998 91 012 34 56', type: 'received',  amount: 6000,   date: 'Jun 9, 2026  16:57'  },
-]
+type BonusHistoryResponse = {
+  bonus_history?: ApiBonusHistoryRow[]
+  data?: ApiBonusHistoryRow[]
+  total?: number
+  stats?: Record<string, number>
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const avatarColors = ['bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500', 'bg-pink-500', 'bg-cyan-500']
 const fmt = (n: number) => n.toLocaleString('ru-RU').replace(/,/g, ' ')
+function initials(name: string) { return name.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || '#' }
+function mapTx(row: ApiBonusHistoryRow): BonusTx {
+  const userName = row.user_full_name || 'Unknown user'
+  const rawType = String(row.type || '').toLowerCase()
+  const type: TxType = rawType.includes('withdraw') ? 'withdrawn' : 'received'
+  return {
+    id: row.guid,
+    userName,
+    avatar: initials(userName),
+    phone: row.user_phone || '',
+    type,
+    amount: Number(row.amount || 0),
+    date: formatDate(row.created_at) || '',
+  }
+}
 
 // ─── Filter dropdown ──────────────────────────────────────────────────────────
 
@@ -170,22 +183,39 @@ export default function BonusHistoryPage() {
   const [search, setSearch]     = useState('')
   const [page, setPage]         = useState(1)
   const [pageSize, setPageSize] = useState(20)
+  const [transactions, setTransactions] = useState<BonusTx[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(false)
 
-  const totalReceived  = ALL_TRANSACTIONS.filter((t) => t.type === 'received').reduce((s, t) => s + t.amount, 0)
-  const totalWithdrawn = ALL_TRANSACTIONS.filter((t) => t.type === 'withdrawn').reduce((s, t) => s + t.amount, 0)
+  const totalReceived  = filter === 'withdrawn' ? 0 : transactions.filter((t) => t.type === 'received').reduce((s, t) => s + t.amount, 0)
+  const totalWithdrawn = filter === 'received' ? 0 : transactions.filter((t) => t.type === 'withdrawn').reduce((s, t) => s + t.amount, 0)
 
-  const filtered = ALL_TRANSACTIONS.filter((t) => {
-    const q = search.trim().toLowerCase()
-    const matchSearch = !q || t.userName.toLowerCase().includes(q) || t.phone.includes(q)
-    const matchFilter = filter === 'all' || t.type === filter
-    return matchSearch && matchFilter
-  })
-
-  const pageCount = Math.ceil(filtered.length / pageSize)
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const pageCount = Math.ceil(total / pageSize)
+  const paginated = transactions
 
   const handleSearch = (v: string) => { setSearch(v); setPage(1) }
   const handleFilter = (f: Filter) => { setFilter(f); setPage(1) }
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    const filterPayload = filter === 'all' ? {} : { type: filter === 'withdrawn' ? 'withdraw' : 'scan' }
+    gatewayList<BonusHistoryResponse>(methods.bonusHistory.list, {
+      page,
+      limit: pageSize,
+      search: search.trim() || undefined,
+      filter: filterPayload,
+      sort: { created_at: -1 },
+    }).then(res => {
+      if (cancelled) return
+      const rows = res.bonus_history || res.data || []
+      setTransactions(rows.map(mapTx))
+      setTotal(res.total ?? rows.length)
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [page, pageSize, search, filter])
 
   return (
     <div className="p-6 flex flex-col gap-6">
@@ -261,7 +291,7 @@ export default function BonusHistoryPage() {
                     <svg className="w-8 h-8 text-muted-foreground/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
                     </svg>
-                    <p className="text-[13px] font-semibold text-muted-foreground">No results match your search</p>
+                    <p className="text-[13px] font-semibold text-muted-foreground">{loading ? 'Loading bonus history...' : 'No results match your search'}</p>
                     <button onClick={() => { handleSearch(''); handleFilter('all') }} className="text-[12px] font-semibold text-primary hover:underline">Clear filters</button>
                   </div>
                 </td></tr>
@@ -312,7 +342,7 @@ export default function BonusHistoryPage() {
         </div>
 
         <PaginationFooter
-          page={page} pageCount={pageCount} pageSize={pageSize} total={filtered.length}
+          page={page} pageCount={pageCount} pageSize={pageSize} total={total}
           onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1) }}
         />
       </div>

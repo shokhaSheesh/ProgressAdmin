@@ -322,4 +322,32 @@ export const methods = {
     update: 'update_notification',
     delete: 'delete_notification',
   },
+  tickets: {
+    create: 'create_ticket',
+    list: 'list_tickets',
+    get: 'get_ticket',
+    update: 'update_ticket',
+    delete: 'delete_ticket',
+  },
+  bonuses: {
+    create: 'create_bonus',
+    list: 'list_bonuses',
+    get: 'get_bonus',
+    update: 'update_bonus',
+    delete: 'delete_bonus',
+  },
+  bonusHistory: {
+    create: 'create_bonus_history',
+    list: 'list_bonus_history',
+    get: 'get_bonus_history',
+    update: 'update_bonus_history',
+    delete: 'delete_bonus_history',
+  },
+  withdrawals: {
+    create: 'create_withdrawal',
+    list: 'list_withdrawals',
+    get: 'get_withdrawal',
+    update: 'update_withdrawal',
+    delete: 'delete_withdrawal',
+  },
 } as const
