@@ -7,6 +7,7 @@ import { formatDate } from '../../api/adminCrud'
 
 type BonusStatus     = 'active' | 'inactive'
 type AssignTarget    = 'categories' | 'products'
+type BonusType       = 'percentage' | 'amount'
 
 interface BonusAssignment { target: AssignTarget; ids: Array<number | string> }
 
@@ -14,6 +15,7 @@ interface Bonus {
   id: number | string
   name: string
   value: number
+  type: BonusType
   assignment: BonusAssignment
   status: BonusStatus
   createdAt: string
@@ -22,7 +24,7 @@ interface Bonus {
 // ─── Fallback data ────────────────────────────────────────────────────────────
 
 const initialBonuses: Bonus[] = [
-  { id: 1, name: 'Summer Engine Promo', value: 8, assignment: { target: 'categories', ids: [1, 5] }, status: 'active', createdAt: 'Jun 10, 2026' },
+  { id: 1, name: 'Summer Engine Promo', value: 8, type: 'percentage', assignment: { target: 'categories', ids: [1, 5] }, status: 'active', createdAt: 'Jun 10, 2026' },
 ]
 
 interface CategoryOption { id: number | string; name: string }
@@ -58,6 +60,7 @@ type ApiBonusRow = {
   guid: string
   name?: string
   value?: string | number
+  type?: string
   is_active?: boolean
   created_at?: string
   appliers?: Array<{ applier_name?: string; applier_id?: string }>
@@ -73,6 +76,7 @@ function mapBonus(row: ApiBonusRow): Bonus {
     id: row.guid,
     name: row.name || '',
     value: Number(row.value || 0),
+    type: row.type === 'amount' ? 'amount' : 'percentage',
     assignment: { target, ids: appliers.map(a => a.applier_id || '').filter(Boolean) },
     status: row.is_active === false ? 'inactive' : 'active',
     createdAt: formatDate(row.created_at) || '',
@@ -128,6 +132,7 @@ function Checkbox({ checked, indeterminate, onChange }: {
 type ModalState = {
   name: string
   value: string
+  type: BonusType
   assignTarget: AssignTarget
   assignIds: Array<number | string>
   status: BonusStatus
@@ -144,8 +149,8 @@ function BonusModal({
 }) {
   const [form, setForm] = useState<ModalState>(
     initial
-      ? { name: initial.name, value: String(initial.value), assignTarget: initial.assignment.target, assignIds: [...initial.assignment.ids], status: initial.status }
-      : { name: '', value: '', assignTarget: 'categories', assignIds: [], status: 'active' }
+      ? { name: initial.name, value: String(initial.value), type: initial.type, assignTarget: initial.assignment.target, assignIds: [...initial.assignment.ids], status: initial.status }
+      : { name: '', value: '', type: 'percentage', assignTarget: 'categories', assignIds: [], status: 'active' }
   )
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set())
@@ -198,10 +203,11 @@ function BonusModal({
     const e: Record<string, string> = {}
     if (!form.name.trim()) e.name = 'Bonus name is required'
     const v = parseFloat(form.value)
-    if (!form.value || isNaN(v) || v <= 0 || v > 100) e.value = 'Enter a value between 0.1 and 100'
+    if (!form.value || isNaN(v) || v <= 0) e.value = 'Enter a value greater than 0'
+    if (form.type === 'percentage' && v > 100) e.value = 'Enter a percentage between 0.1 and 100'
     if (form.assignIds.length === 0) e.assign = 'Select at least one item'
     if (Object.keys(e).length) { setErrors(e); return }
-    onSave({ name: form.name.trim(), value: parseFloat(form.value), assignment: { target: form.assignTarget, ids: form.assignIds }, status: form.status })
+    onSave({ name: form.name.trim(), value: parseFloat(form.value), type: form.type, assignment: { target: form.assignTarget, ids: form.assignIds }, status: form.status })
   }
 
   const inputCls = (err?: string) =>
@@ -234,20 +240,31 @@ function BonusModal({
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
 
-          {/* Name + Value */}
+          {/* Name + Type + Value */}
           <div className="flex gap-4">
             <div className="flex-1 flex flex-col gap-1.5">
               <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Bonus Name</label>
               <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Summer Engine Promo" className={inputCls(errors.name)} />
               {errors.name && <p className="text-[11px] font-semibold text-red-500">{errors.name}</p>}
             </div>
-            <div className="w-32 flex flex-col gap-1.5">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Value (%)</label>
+            <div className="w-40 flex flex-col gap-1.5">
+              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Type</label>
               <div className="relative">
-                <input type="number" min={0.1} max={100} step={0.1} value={form.value}
+                <select value={form.type} onChange={e => set('type', e.target.value as BonusType)}
+                  className="appearance-none w-full rounded-xl px-4 py-2.5 pr-9 text-[13px] font-semibold bg-[#F4F5F7] border-2 border-transparent outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer">
+                  <option value="percentage">Percentage</option>
+                  <option value="amount">Amount</option>
+                </select>
+                <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+              </div>
+            </div>
+            <div className="w-32 flex flex-col gap-1.5">
+              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Value</label>
+              <div className="relative">
+                <input type="number" min={0.1} max={form.type === 'percentage' ? 100 : undefined} step={0.1} value={form.value}
                   onChange={e => set('value', e.target.value)} placeholder="0"
-                  className={inputCls(errors.value) + ' pr-8'} />
-                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[12px] font-semibold text-muted-foreground">%</span>
+                  className={inputCls(errors.value) + (form.type === 'percentage' ? ' pr-8' : ' pr-12')} />
+                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[12px] font-semibold text-muted-foreground">{form.type === 'percentage' ? '%' : 'UZS'}</span>
               </div>
               {errors.value && <p className="text-[11px] font-semibold text-red-500">{errors.value}</p>}
             </div>
@@ -493,6 +510,7 @@ export default function BonusesPage() {
     const payload = {
       name: data.name,
       value: String(data.value),
+      type: data.type,
       status: data.status,
       appliers: data.assignment.ids.map(id => ({ applier_name: data.assignment.target, applier_id: String(id) })),
     }
@@ -591,7 +609,9 @@ export default function BonusesPage() {
                   <tr key={b.id} className="hover:bg-[#FAFAFA] transition-colors">
                     <td className={tdCls}><span className="font-semibold">{b.name}</span></td>
                     <td className={tdCls}>
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 text-[12px] font-bold">{b.value}%</span>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 text-[12px] font-bold">
+                        {b.type === 'percentage' ? `${b.value}%` : `${b.value.toLocaleString('ru-RU')} UZS`}
+                      </span>
                     </td>
                     <td className={tdCls}>
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#F4F5F7] text-[12px] font-semibold text-foreground">
