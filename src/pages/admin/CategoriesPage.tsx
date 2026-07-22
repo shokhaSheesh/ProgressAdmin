@@ -29,6 +29,15 @@ interface CategoryRow {
 interface CategoryListResponse {
   categories?: CategoryRow[]
   data?: CategoryRow[]
+  total?: number
+  stats?: {
+    total?: number
+    active?: number
+    inactive?: number
+    root?: number
+    root_categories?: number
+    sub_categories?: number
+  }
 }
 
 const LANGS: { key: Lang; label: string; flag: string }[] = [
@@ -442,6 +451,7 @@ export default function CategoriesPage() {
   const [loading, setLoading]       = useState(true)
   const [saving, setSaving]         = useState(false)
   const [error, setError]           = useState('')
+  const [stats, setStats]           = useState<CategoryListResponse['stats']>({})
 
   async function loadCategories() {
     setLoading(true)
@@ -451,6 +461,7 @@ export default function CategoriesPage() {
       const rows = response.categories || response.data || []
       const mapped = rows.filter(row => row.guid).map(mapCategory)
       setCategories(mapped)
+      setStats(response.stats || { total: response.total ?? mapped.length })
       setExpanded(prev => prev.size ? prev : new Set(mapped.filter(c => c.parentId === null).map(c => c.id)))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load categories')
@@ -491,8 +502,9 @@ export default function CategoriesPage() {
   )
 
   // ── Counts ──
-  const rootCount = categories.filter(c => c.parentId === null).length
-  const subCount  = categories.filter(c => c.parentId !== null).length
+  const totalCount = stats?.total ?? categories.length
+  const rootCount = stats?.root_categories ?? stats?.root ?? categories.filter(c => c.parentId === null).length
+  const subCount  = stats?.sub_categories ?? categories.filter(c => c.parentId !== null).length
 
   function getDescendantIds(id: string): string[] {
     const children = categories.filter(c => c.parentId === id)
@@ -575,7 +587,7 @@ export default function CategoriesPage() {
       <div className="grid grid-cols-3 gap-4">
         {[
           {
-            label: 'Total Categories', value: categories.length,
+            label: 'Total Categories', value: totalCount,
             icon: <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /><path d="M3 17.5A3.5 3.5 0 0 0 6.5 21M3 14v.01" /><path d="M7 14a3 3 0 0 1 3 3v4" /></svg>,
             iconBg: 'bg-blue-100', iconColor: 'text-blue-600',
           },
